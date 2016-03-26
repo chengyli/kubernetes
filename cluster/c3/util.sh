@@ -84,7 +84,7 @@ function verify-prereqs {
 
   # Mac OS X has swfit programming language, ensure that we are not dealing with it
   version_check=$(${SWIFT} --version)
-  if [[ $version_check != *swift* ]]; then
+  if [[ ! ${version_check} =~ .*python-swiftclient.* ]]; then
     echo -e "${color_red} swift does not seem to be the openstack type, please export SWIFT to point at the right binary. ${color_norm}"
     exit 1
   fi
@@ -125,7 +125,7 @@ function verify-prereqs {
   # Ensure that we have the right cinder client version ?
   cinder_version=$(cinder --version 2>&1 )
   if [[ ${cinder_version} != "1.3.1" ]]; then
-      echo "cinder client version 1.3.1 is needed, found ${cinder_version}, this might not work"
+      echo -e "${color_red}cinder client version 1.3.1 is needed, found ${cinder_version}, this might not work${color_norm}"
   fi
 
 }

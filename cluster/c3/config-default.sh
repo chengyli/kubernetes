@@ -138,14 +138,25 @@ if [[ -z "${OS_TENANT_ID-}" ]]; then
     export OS_TENANT_ID=`openstack project show ${OS_TENANT_NAME} | awk '/ id / {print $0}' | awk -F '|' '{print $3}' | xargs`
 fi
 
+if openstack --version 2>&1 | grep -q 'openstack 2.1.0'; then
+    project_details=$(openstack project show ${OS_TENANT_ID})
+    VPC=$(echo "$project_details" | sed -n "s/|\s*properties\s*|\s*.*vpc='\([^']*\)'.*/\1/p")
+    OS_TENANT_NAME=$(echo "$project_details" | sed -n "s/|\s*name\s*|\s*\([^/s]*\)/\1/p")
+else
+    # supposed to work on other versions of openstack?
+    project_details=$(mktemp -t temp_project_details.XXXX)
+    openstack project show ${OS_TENANT_ID} > $project_details
+    VPC=$(cat $project_details | awk '/ vpc / {print $4}')
+    OS_TENANT_NAME=$(cat $project_details | awk '/ name / {print $4}')
+    rm -R $project_details
+fi
 
-project_details=$(mktemp -t temp_project_details.XXXX)
-openstack project show ${OS_TENANT_ID} > $project_details
-VPC=$(cat $project_details | awk '/ vpc / {print $4}')
-export OS_TENANT_NAME=$(cat $project_details | awk '/ name / {print $4}')
-rm -R $project_details
+export OS_TENANT_NAME=${OS_TENANT_NAME}
 
 DOMAIN_SUFFIX="${VPC}.ebayc3.com"
+
+# Specific SSH key to be used for this cluster
+SSH_KEY_NAME=${SSH_KEY_NAME-"id_kubernetes_${OS_TENANT_NAME}"}
 
 export CLUSTER_EXTERNAL_DNS_NAME="${CLUSTER_EXTERNAL_DNS_NAME-unspecified}"
 #(todo): generate one dynamically, if not specified
@@ -212,3 +223,4 @@ export TAB_PREFIX="---->"
 
 # The openstack swift binary to use
 export SWIFT=${SWIFT:-'swift'}
+export OS_VOLUME_API_VERSION=1
