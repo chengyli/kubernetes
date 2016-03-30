@@ -1,0 +1,3 @@
+GLOG_PREFIX (?<severity>[IWEF])%{MONTHNUM:month_num}%{MONTHDAY:month_day}%{SPACE}%{TIME:time}%{SPACE}%{POSINT:pid}%{SPACE}%{NOTSPACE:file_name}:%{POSINT:line_number}]
+KUBE_API_LOG_PREFIX %{WORD:method}%{SPACE}%{NOTSPACE:request_uri}:%{SPACE}\(%{NUMBER:latency}%{NOTSPACE:time_unit}\)%{SPACE}%{NUMBER:http_status}
+KUBE_API_LOG %{KUBE_API_LOG_PREFIX}%{SPACE}(\[\[%{GREEDYDATA:user_agent}\]%{SPACE}%{IPORHOST:remote_addr_ip}:%{POSINT:remote_addr_port}\])?

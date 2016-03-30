@@ -1,0 +1,112 @@
+{
+  "template": "logstash-*",
+  "settings" : {
+    "number_of_shards" : 3
+  },
+  "mappings": {
+    "_default_": {
+      "_all": {
+        "enabled": true
+      },
+      "properties": {
+        "file_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "host": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "http_status": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "latency": {
+          "type": "float"
+        },
+        "line_number": {
+          "type": "integer"
+        },
+        "method": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "namespace": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "remote_addr_ip": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "remote_addr_port": {
+          "type": "integer"
+        },
+        "resource": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "resource_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "severity": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "sub_resource": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "time_unit": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "type": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "verb": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "version": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "tag": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "hostname": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "kubernetes_container_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "kubernetes_namespace_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "kubernetes_pod_name": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "COMMAND": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "EXECUTABLE": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "kubernetes_node": {
+          "type": "string",
+          "index": "not_analyzed"
+        }
+      }
+    }
+  }
+}

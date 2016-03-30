@@ -1,0 +1,47 @@
+{% set influxdb_memory_mb = "300" -%}
+{% if pillar['influxdb_memory_mb'] is defined -%}
+  {% set influxdb_memory_mb = pillar['influxdb_memory_mb'] -%}
+{% endif -%}
+
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: monitoring-influxdb
+  namespace: kube-system
+  labels:
+    k8s-app: influxdb
+    version: v2
+    kubernetes.io/cluster-service: "true"
+spec: 
+  replicas: 1
+  selector: 
+    k8s-app: influxdb
+    version: v2
+  template: 
+    metadata: 
+      labels: 
+        k8s-app: influxdb
+        version: v2
+        kubernetes.io/cluster-service: "true"
+    spec: 
+      containers: 
+        - image: ecr.vip.ebayc3.com/kubernetes/heapster_influxdb:v0.5
+          name: influxdb
+          resources:
+            limits:
+              cpu: 100m
+              memory: {{ influxdb_memory_mb }}Mi
+          ports: 
+            - containerPort: 8083
+              hostPort: 8083
+            - containerPort: 8086
+              hostPort: 8086
+          volumeMounts:
+          - name: influxdb-persistent-storage
+            mountPath: /data
+      volumes:
+      - name: influxdb-persistent-storage
+        emptyDir: {}
+
+
+

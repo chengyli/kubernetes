@@ -1,0 +1,23 @@
+cluster.name: kubernetes-logging
+node.master: ${NODE_MASTER}
+node.data: ${NODE_DATA}
+transport.tcp.port: ${TRANSPORT_PORT}
+http.port: ${HTTP_PORT}
+http.enabled: ${HTTP_ENABLED}
+network.host: 0.0.0.0
+
+watcher.actions.slack.service:
+  account:
+    tessio:
+      url: ${SLACK_URL}
+      message_default:
+        from: watcher
+
+path.data: /data
+
+script.inline: on
+script.indexed: on
+
+discovery.zen.ping.multicast.enabled: false
+
+#intentional new line for the elasticsearch_logging_discovery. add new properties above this

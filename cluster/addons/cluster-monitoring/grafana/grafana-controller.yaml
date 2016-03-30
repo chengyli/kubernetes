@@ -1,0 +1,53 @@
+{% set grafana_memory_mb = "100" -%}
+{% if pillar['grafana_memory_mb'] is defined -%}
+  {% set grafana_memory_mb = pillar['grafana_memory_mb'] -%}
+{% endif -%}
+
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: monitoring-grafana
+  namespace: kube-system
+  labels:
+    k8s-app: grafana
+    version: 2.6.0
+    kubernetes.io/cluster-service: "true"
+spec: 
+  replicas: 1
+  selector: 
+    k8s-app: grafana
+    version: 2.6.0
+  template: 
+    metadata: 
+      labels: 
+        k8s-app: grafana
+        version: 2.6.0
+        kubernetes.io/cluster-service: "true"
+    spec: 
+      containers:
+        - image: ecr.vip.ebayc3.com/kubernetes/grafana:2.6.0-u1
+          name: grafana
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 100m
+              memory: {{ grafana_memory_mb }}Mi
+          ports:
+            - containerPort: 3000
+          env:
+            - name: "INFLUXDB_SERVICE_URL"
+              value: "http://monitoring-influxdb:8086"
+            - name: "PROMETHEUS_SERVICE_URL"
+              value: "http://monitoring-prometheus:9090"
+            - name: "ELASTICSEARCH_SERVICE_URL"
+              value: "http://elasticsearch-logging:9200"
+            - name: "ELASTICSEARCH_INDEX"
+              value: "heapster-metrics"
+          volumeMounts:
+          - name: grafana-persistent-storage
+            mountPath: /var
+      volumes:
+      - name: grafana-persistent-storage
+        emptyDir: {}
+
+
