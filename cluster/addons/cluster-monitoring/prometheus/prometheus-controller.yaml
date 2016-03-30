@@ -1,0 +1,52 @@
+{% set prometheus_memory_mb = "600" -%}
+{% if pillar['prometheus_memory_mb'] is defined -%}
+  {% set prometheus_memory_mb = pillar['prometheus_memory_mb'] -%}
+{% endif -%}
+{% set prometheus_memory_chunks = "204800" -%}
+{% if pillar['prometheus_memory_chunks'] is defined -%}
+  {% set prometheus_memory_chunks = pillar['prometheus_memory_chunks'] -%}
+{% endif -%}
+{% set prometheus_retention = "168h" -%}
+{% if pillar['prometheus_retention'] is defined -%}
+  {% set prometheus_retention = pillar['prometheus_retention'] -%}
+{% endif -%}
+
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: prometheus-server
+  namespace: kube-system
+  labels:
+    k8s-app: prometheus-server
+    version: v0.16.2
+    kubernetes.io/cluster-service: "true"
+spec:
+  replicas: 1
+  selector:
+    k8s-app: prometheus-server
+    version: v0.16.2
+  template:
+    metadata:
+      labels:
+        k8s-app: prometheus-server
+        version: v0.16.2
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+       - image: ecr.vip.ebayc3.com/kubernetes/kube-prometheus:0.16.2-u2
+         name: prometheus-server
+         imagePullPolicy: Always
+         resources:
+           limits:
+             cpu: 300m
+             memory: {{ prometheus_memory_mb }}Mi
+         ports:
+           - containerPort: 9090
+             hostPort: 9090
+         env:
+           - name: "PROMETHEUS_ALERTMANAGER_URL"
+             value: "http://prometheus-alertmanager:9093"
+           - name: "PROMETHEUS_RETENTION"
+             value: "{{ prometheus_retention }}"
+           - name: "PROMETHEUS_MEMORY_CHUNKS"
+             value: "{{ prometheus_memory_chunks }}"

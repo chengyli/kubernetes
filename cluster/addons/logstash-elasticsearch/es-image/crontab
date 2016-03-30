@@ -1,0 +1,4 @@
+#!/bin/sh
+
+/usr/local/bin/curator --host 0.0.0.0 delete indices --older-than $days --time-unit days  --timestring '%Y.%m.%d' >> /var/log/cron.log 2>&1
+exit 0

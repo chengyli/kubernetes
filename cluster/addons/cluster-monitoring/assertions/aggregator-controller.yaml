@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: aggregator
+  namespace: kube-system
+  labels:
+    k8s-app: aggregator
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  replicas: 1
+  selector:
+    k8s-app: aggregator
+    version: v1
+  template:
+    metadata:
+      labels:
+        k8s-app: aggregator
+        version: v1
+        kubernetes.io/cluster-service: "false"
+    spec:
+      containers:
+      - name: aggregator
+        image: ecr.vip.ebayc3.com/tessassert/aggregator:0.0.3-u4
+        imagePullPolicy: Always
+        env:
+        - name: "OS_TENANT_NAME"
+          value: "{{ pillar.get('os_tenant_name') }}"
+        livenessProbe:
+          httpGet:
+            path: /aggregator/metrics/ping
+            port: 8080
+          initialDelaySeconds: 120
+          timeoutSeconds: 20
+        resources:
+          limits:
+            cpu: 100m
+            memory: 1000Mi
+

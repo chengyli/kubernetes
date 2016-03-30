@@ -1,0 +1,38 @@
+{% set alertmanager_memory_mb = "300" -%}
+{% if pillar['alertmanager_memory_mb'] is defined -%}
+  {% set alertmanager_memory_mb = pillar['alertmanager_memory_mb'] -%}
+{% endif -%}
+
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: prometheus-alertmanager
+  namespace: kube-system
+  labels:
+    k8s-app: prometheus-alertmanager
+    version: 0.0.1
+    kubernetes.io/cluster-service: "true"
+spec:
+  replicas: 1
+  selector:
+    k8s-app: prometheus-alertmanager
+    version: 0.0.1
+  template:
+    metadata:
+      labels:
+        k8s-app: prometheus-alertmanager
+        version: 0.0.1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      containers:
+       - image: ecr.vip.ebayc3.com/kubernetes/kube-prometheus-alertmanager:0.0.1-u1
+         name: prometheus-alertmanager
+         imagePullPolicy: Always
+         resources:
+           limits:
+             cpu: 100m
+             memory: {{ alertmanager_memory_mb }}Mi
+         ports:
+           - containerPort: 9093
+             hostPort: 9093
+

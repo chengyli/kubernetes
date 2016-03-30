@@ -1,0 +1,14 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: prometheus-alertmanager
+  namespace: kube-system
+  labels:
+    kubernetes.io/cluster-service: "true"
+    kubernetes.io/name: "Alertmanagaer"
+spec:
+  ports:
+    - port: 9093
+      targetPort: 9093
+  selector:
+    k8s-app: prometheus-alertmanager

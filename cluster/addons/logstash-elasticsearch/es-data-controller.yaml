@@ -1,0 +1,70 @@
+{% set replicas = "3" -%}
+{% if pillar['elasticsearch_replicas'] is defined -%}
+  {% set replicas = pillar['elasticsearch_replicas'] -%}
+{% endif -%}
+{% set heap_size_gb = "1" -%}
+{% if pillar['elasticsearch_heap_size_gb'] is defined -%}
+  {% set heap_size_gb = pillar['elasticsearch_heap_size_gb'] -%}
+{% endif -%}
+
+
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: elasticsearch-logging-data-v1
+  namespace: kube-system
+  labels:
+    k8s-app: elasticsearch-logging
+    version: v1
+    kubernetes.io/cluster-service: "true"
+    role: data
+spec:
+  replicas: {{ replicas }}
+  selector:
+    k8s-app: elasticsearch-logging
+    version: v1
+    role: data
+  template:
+    metadata:
+      labels:
+        k8s-app: elasticsearch-logging
+        version: v1
+        kubernetes.io/cluster-service: "true"
+        role: data
+    spec:
+      containers:
+      - image: ecr.vip.ebayc3.com/kubernetes/elasticsearch:2.0.0-u1
+        name: elasticsearch-logging
+        imagePullPolicy: Always
+        resources:
+          limits:
+            cpu: 100m
+            memory: {{ heap_size_gb }}Gi
+        ports:
+        - containerPort: 9200
+          name: db
+          protocol: TCP
+        - containerPort: 9300
+          name: transport
+          protocol: TCP
+        env:
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: "ES_HEAP_SIZE"
+            value: "{{ heap_size_gb }}g"
+          - name: "NODE_MASTER"
+            value: "false"
+          - name: "HTTP_ENABLED"
+            value: "true"
+          - name: "NODE_DATA"
+            value: "true"
+          - name: "RETENTION"
+            value: "7"
+        volumeMounts:
+        - name: es-persistent-storage
+          mountPath: /data
+      volumes:
+      - name: es-persistent-storage
+        emptyDir: {}
