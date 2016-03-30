@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# according to http://linuxmanpages.net/manpages/fedora16/man8/dhclient-script.8.html
+# the folllowing will prevent dhclient from changing resolv.conf
+
+make_resolv_conf(){
+    :
+}

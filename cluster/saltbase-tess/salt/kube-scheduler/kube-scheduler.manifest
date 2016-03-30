@@ -1,0 +1,46 @@
+{% set api_servers_with_port = "--master=" + pillar['api_servers_with_port'] -%}
+
+{% set kubeconfig = "--kubeconfig=/var/lib/kube-scheduler/kubeconfig" -%}
+
+{% set params = kubeconfig + " " + api_servers_with_port + " " + " --address=0.0.0.0 " + pillar['log_level'] + " " -%}
+
+{
+"apiVersion": "v1",
+"kind": "Pod",
+"metadata": {"name":"kube-scheduler"},
+"spec":{
+"hostNetwork": true,
+"containers":[
+    {
+    "name": "kube-scheduler",
+    "image": "gcr.io/google_containers/kube-scheduler:{{pillar['kube-scheduler_docker_tag']}}",
+    "command": [
+                 "/bin/sh",
+                 "-c",
+                 "/usr/local/bin/kube-scheduler {{params}} 1>>/var/log/kube-scheduler.log 2>&1 "
+               ],
+    "volumeMounts": [
+        {
+          "name": "kubeconfig",
+          "mountPath": "/var/lib/kube-scheduler",
+          "readOnly": false
+        },
+        {
+          "name": "logfile",
+          "mountPath": "/var/log/kube-scheduler.log",
+          "readOnly": false
+        }
+      ]
+    }
+],
+"volumes":[
+  { "name": "kubeconfig",
+    "hostPath": {
+        "path": "/var/lib/kube-scheduler"}
+  },
+  { "name": "logfile",
+    "hostPath": {
+        "path": "/var/log/kube-scheduler.log"}
+  }
+]
+}}

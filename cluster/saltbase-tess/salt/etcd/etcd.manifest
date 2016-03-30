@@ -1,0 +1,185 @@
+{% set name = "--name " + grains.node_name %}
+{% set nodeip = "--node-ip " + grains.node_ip %}
+{% set intialAdvertisePeerUrls = "--initial-advertise-peer-urls http://"+ grains.node_ip + ":2380" %}
+{% set listenPeerUrls = "--listen-peer-urls http://0.0.0.0:2380" %}
+{% set advertiseClientUrls = "--advertise-client-urls https://" + grains.node_ip+ ":4001" %}
+{% set listenClientUrls = "--listen-client-urls https://0.0.0.0:4001" %}
+{% set dataDir = "--data-dir /var/etcd/data" %}
+{% set discoveryToken = "--discovery " + grains.etcd_discovery_url %}
+{% set cert_file = "--cert-file=/etc/ssl/kubernetes/etcd.crt" -%}
+{% set key_file = "--key-file=/etc/ssl/kubernetes/etcd.key" -%}
+{% set ca_file = "--ca-file /etc/ssl/kubernetes/ca.crt" -%}
+{% set params = name + " " + nodeip + " " + intialAdvertisePeerUrls + " " + listenPeerUrls + " " + advertiseClientUrls + " " + listenClientUrls + " " + dataDir + " " + ca_file + " " + cert_file + " " + key_file + " " + discoveryToken%}
+
+
+{
+"apiVersion": "v1",
+"kind": "Pod",
+"metadata": {"name":"etcd-server"},
+"spec":{
+"hostNetwork": true,
+"containers":[
+    {
+    "name": "etcd-container",
+    "image": "ecr.vip.ebayc3.com/kubernetes/etcd-wrapped:2.2.1-3",
+    "resources": {
+      "limits": {
+        "cpu": "200m"
+      }
+    },
+    "command": [
+              "/bin/sh",
+              "-c",
+              "/usr/local/bin/start_etcd.sh {{params}}  >>/var/log/etcd.log 2>&1"
+            ],
+    "ports":[
+          { "name": "serverport",
+            "containerPort": 2380,
+            "hostPort": 2380
+          },
+          {
+           "name": "clientport",
+            "containerPort": 4001,
+            "hostPort": 4001
+          }
+        ],
+    "volumeMounts": [
+        {
+            "name": "mntconfig",
+            "mountPath": "/mnt/config/openstack/latest",
+            "readOnly": false
+        },
+        {
+            "name": "varetcd",
+            "mountPath": "/var/etcd",
+            "readOnly": false
+        },
+        {
+            "name": "varlogetcd",
+            "mountPath": "/var/log/etcd.log",
+            "readOnly": false
+        },
+        {
+            "name": "etcssl",
+            "mountPath": "/etc/ssl",
+            "readOnly": true
+        },
+        {
+            "name": "usrsharessl",
+            "mountPath": "/usr/share/ssl",
+            "readOnly": true
+        },
+        {
+            "name": "varssl",
+            "mountPath": "/var/ssl",
+            "readOnly": true
+        },
+        {
+            "name": "usrssl",
+            "mountPath": "/usr/ssl",
+            "readOnly": true
+        },
+        {
+            "name": "usrlibssl",
+            "mountPath": "/usr/lib/ssl",
+            "readOnly": true
+        },
+        {
+            "name": "usrlocalopenssl",
+            "mountPath": "/usr/local/openssl",
+            "readOnly": true
+        },
+        {
+            "name": "etcopenssl",
+            "mountPath": "/etc/openssl",
+            "readOnly": true
+        },
+        {
+            "name": "etcpkitls",
+            "mountPath": "/etc/pki",
+            "readOnly": true
+        }
+      ]
+    }
+],
+    "volumes": [
+        {
+            "name": "mntconfig",
+            "hostPath": {
+                "path": "/mnt/config/openstack/latest"
+        }
+        },
+        {
+            "name": "varetcd",
+            "hostPath": {
+                "path": "/mnt/master-pd/var/etcd"
+            }
+        },
+        {
+            "name": "varlogetcd",
+            "hostPath": {
+                "path": "/var/log/etcd.log"
+            }
+        },
+        {
+            "name": "etcssl",
+            "hostPath": {
+                "path": "/etc/ssl"
+            }
+        },
+        {
+            "name": "usrsharessl",
+            "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+                "path": "/usr/local/share/ssl"
+{% else %}
+                "path": "/usr/share/ssl"
+{% endif %}
+            }
+        },
+        {
+            "name": "varssl",
+            "hostPath": {
+                "path": "/var/ssl"
+            }
+        },
+        {
+            "name": "usrssl",
+            "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+                "path": "/usr/local/ssl"
+{% else %}
+                "path": "/usr/ssl"
+{% endif %}
+            }
+        },
+        {
+            "name": "usrlibssl",
+            "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+                "path": "/usr/local/lib/ssl"
+{% else %}
+                "path": "/usr/lib/ssl"
+{% endif %}
+            }
+        },
+        {
+            "name": "usrlocalopenssl",
+            "hostPath": {
+                "path": "/usr/local/openssl"
+            }
+        },
+        {
+            "name": "etcopenssl",
+            "hostPath": {
+                "path": "/etc/openssl"
+            }
+        },
+        {
+            "name": "etcpkitls",
+            "hostPath": {
+                "path": "/etc/pki"
+            }
+        }
+    ]
+}}

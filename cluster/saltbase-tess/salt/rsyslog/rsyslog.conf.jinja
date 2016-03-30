@@ -1,0 +1,79 @@
+#  /etc/rsyslog.conf    Configuration file for rsyslog.
+#
+#                       For more information see
+#                       /usr/share/doc/rsyslog-doc/html/rsyslog_conf.html
+
+
+#################
+#### MODULES ####
+#################
+
+# imjournal enables rsyslog to read systemd journals
+$ModLoad imjournal
+
+# mmjsonparse turns logs from systemd journal into json
+$ModLoad mmjsonparse
+
+###########################
+#### GLOBAL DIRECTIVES ####
+###########################
+
+# Where to place auxiliary files
+$WorkDirectory /var/lib/rsyslog
+
+# Disable rate limiting
+$imjournalRatelimitInterval 0
+
+template(name="CEETemplate" type="list") {
+     constant(value="\n{\"timestamp\":\"")
+     property(name="timereported" dateFormat="rfc3339")
+     constant(value="\",\"hostname\":\"")
+     property(name="hostname" format="json")
+     constant(value="\",")
+     property(name="$!all-json" position.from="2")
+  }
+
+$ActionFileDefaultTemplate CEETemplate
+
+#
+# Include all config files in /etc/rsyslog.d/
+#
+$IncludeConfig /etc/rsyslog.d/*.conf
+
+# Turn off message reception via local log socket;
+# local messages are retrieved through imjournal now.
+$OmitLocalLogging on
+
+# File to store the position in the journal
+$IMJournalStateFile imjournal.state
+
+#### RULES ####
+
+*.* :mmjsonparse:
+
+# Log all kernel messages to the console.
+# Logging much else clutters up the screen.
+#kern.*                                                 /dev/console
+
+# Log anything (except mail) of level info or higher.
+# Don't log private authentication messages!
+*.info;mail.none;authpriv.none;cron.none                /var/log/messages
+
+# The authpriv file has restricted access.
+authpriv.*                                              /var/log/secure
+
+# Log all the mail messages in one place.
+mail.*                                                  -/var/log/maillog
+
+
+# Log cron stuff
+cron.*                                                  /var/log/cron
+
+# Everybody gets emergency messages
+*.emerg                                                 :omusrmsg:*
+
+# Save news errors of level crit and higher in a special file.
+uucp,news.crit                                          /var/log/spooler
+
+# Save boot messages also to boot.log
+local7.*                                                /var/log/boot.log

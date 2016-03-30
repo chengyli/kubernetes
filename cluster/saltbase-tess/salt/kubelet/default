@@ -1,0 +1,51 @@
+{% set daemon_args = "$DAEMON_ARGS" -%}
+{% if grains['os_family'] == 'RedHat' -%}
+  {% set daemon_args = "" -%}
+{% endif -%}
+
+{% set api_servers_with_port = "--api-servers=" + pillar['api_servers_with_port'] -%}
+
+{% set config = "--config=/etc/kubernetes/manifests" -%}
+
+{% set debugging_handlers = "--enable-debugging-handlers=true" -%}
+{% if grains.cloud in ['gce', 'vagrant', 'c3'] -%}
+  {% if grains['roles'][0] == 'kubernetes-master' -%}
+    {% set debugging_handlers = "--enable-debugging-handlers=false" -%}
+  {% endif -%}
+{% endif -%}
+
+{% set hostname_override = "" -%}
+{% if grains.hostname_override is defined -%}
+  {% set hostname_override = " --hostname-override=" + grains.hostname_override -%}
+{% endif -%}
+
+
+{% set cloud_provider = "--cloud_provider=openstack" -%}
+{% set cloud_config = "--cloud_config=/etc/sysconfig/openstack.rc" -%}
+
+{% set pause_image = "--pod-infra-container-image=ecr.vip.ebayc3.com/kubernetes/pause:0.8.0"%}
+{% set address = "" -%}
+{% set network_plugin = "" -%}
+
+{% if grains['roles'][0] in ['kubernetes-pool', 'kubernetes-master'] -%}
+    {% set address = "--address=0.0.0.0" -%}
+    {% set network_plugin = "--network_plugin=tessnet" -%}
+{% endif -%}
+
+{% set registry_qps = "--registry_qps=0.1" %}
+# TODO this needs to be consolidated to one single place
+{% set kubeconfig = "--kubeconfig=/var/lib/kubelet/kubeconfig" -%}
+
+{% set cluster_dns = "" %}
+{% set cluster_domain = "" %}
+{% if pillar.get('enable_cluster_dns', '').lower() == 'true' %}
+  {% set cluster_dns = "--cluster_dns=" + pillar['dns_server'] %}
+  {% set cluster_domain = "--cluster_domain=" + pillar['dns_domain'] %}
+{% endif %}
+
+{% set schedulable = "--register-schedulable=true" -%}
+{% if grains['roles'][0] == 'kubernetes-master' -%}
+  {% set schedulable = "--register-schedulable=false" -%}
+{% endif %}
+
+DAEMON_ARGS="{{daemon_args}} {{api_servers_with_port}} {{kubeconfig}} {{hostname_override}} {{config}} {{ cloud_provider }} {{ cloud_config }} {{address}} {{ network_plugin }} --allow_privileged={{pillar['allow_privileged']}} {{pillar['log_level']}} {{cluster_dns}} {{cluster_domain}} {{pause_image}} {{schedulable}} --root-dir=/mnt/kubelet"

@@ -1,0 +1,14 @@
+#!/bin/bash
+ip route replace default via {{ gateway }} src {{ ovs_br_ip }} table 100
+ip route replace default via {{ gateway }} table 200
+
+ip rule add to 172.20.0.0/16 table 100
+ip rule add from {{ ovs_br_ip_cidr }} table 100
+
+ip rule add from {{ docker_br_ip }} table 200
+
+ip route replace default via {{ gateway }} dev {{ ovs_br }} table 100
+
+ip route replace {{ ovs_br_ip_cidr }} dev {{ ovs_br }} src {{ ovs_br_ip }} table 100
+
+#ip route replace  {{ docker_br_ip_cidr }} dev {{ docker_br }} src {{ docker_br_ip }}  table 200

@@ -1,0 +1,24 @@
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' -%}
+    DOCKER_OPTS=
+{% else -%}
+    DOCKER_OPTS="--graph=/mnt/docker"
+{%- endif %}
+{% if grains.docker_opts is defined and grains.docker_opts %}
+DOCKER_OPTS="${DOCKER_OPTS} {{grains.docker_opts}}"
+{% endif %}
+{% if grains.os_family == 'RedHat' %}
+    {%- set OPTIONS=" --bridge cbr0 --iptables=false --ip-masq=false" %}
+    {% if grains.docker_fixed_cidr is defined -%}
+        {%- set OPTIONS="--fixed-cidr=" + grains.docker_fixed_cidr + OPTIONS %}
+    {%- endif %}
+
+    {%- if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+        OPTIONS="{{ OPTIONS }}"
+    {%- else %}
+        OPTIONS="{{ OPTIONS }} --graph=/mnt/docker"
+    {%- endif %}
+
+{% else %}
+    DOCKER_OPTS="${DOCKER_OPTS} --bridge cbr0 --iptables=false --ip-masq=false -r=false"
+{% endif %}
+DOCKER_NOFILE=1000000

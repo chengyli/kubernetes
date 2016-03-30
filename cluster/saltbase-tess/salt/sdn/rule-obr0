@@ -1,0 +1,3 @@
+to 172.20.0.0/16 table 100
+from {{ ovs_br_ip_cidr }} table 100
+from {{ docker_br_ip }} table 200

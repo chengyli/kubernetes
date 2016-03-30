@@ -1,0 +1,269 @@
+{% set daemon_args = "$DAEMON_ARGS" -%}
+{% if grains['os_family'] == 'RedHat' -%}
+	{% set daemon_args = "" -%}
+{% endif -%}
+
+{% set cloud_provider = "" -%}
+{% set cloud_config = "" -%}
+
+{% if grains.cloud is defined -%}
+{% set cloud_provider = "--cloud_provider=" + grains.cloud -%}
+
+{% if grains.cloud == 'gce' -%}
+  {% if grains.cloud_config is defined -%}
+    {% set cloud_config = "--cloud_config=" + grains.cloud_config -%}
+  {% endif -%}
+
+{% elif grains.cloud == 'aws' -%}
+  {% if grains.cloud_config is defined -%}
+    {% set cloud_config = "--cloud_config=" + grains.cloud_config -%}
+  {% endif -%}
+
+{% elif grains.cloud == 'c3' -%}
+    {% set cloud_provider = "--cloud_provider=openstack"-%}
+    {% set cloud_config = "--cloud_config=/etc/sysconfig/openstack.rc" -%}
+ {% endif -%}
+{% endif -%}
+
+{% set advertise_address = "" -%}
+{% if grains.advertise_address is defined -%}
+  {% set advertise_address = "--advertise-address=" + grains.advertise_address -%}
+{% endif -%}
+
+{% set proxy_ssh_options = "" -%}
+{% if grains.proxy_ssh_user is defined -%}
+  {% set proxy_ssh_options = "--ssh-user=" + grains.proxy_ssh_user + " --ssh-keyfile=/srv/sshproxy/.sshkeyfile" -%}
+  {# Append 40 characters onto command to work around #9822. #}
+  {# If mount list changes, this may also need to change. #}
+  {% set proxy_ssh_options = proxy_ssh_options + "                                        " -%}
+{% endif -%}
+{% set address = "--insecure-bind-address=0.0.0.0" -%}
+
+{% set cluster_name = "" -%}
+{% if pillar['instance_prefix'] is defined -%}
+  {% set cluster_name = "--cluster_name=" + pillar['instance_prefix'] -%}
+{% endif -%}
+
+{% set bind_address = "" -%}
+{% if grains.publicAddressOverride is defined -%}
+  {% set bind_address = "--bind-address=" + grains.publicAddressOverride -%}
+{% endif -%}
+
+{% set etcd_servers = "--etcd_servers=https://127.0.0.1:4001" -%}
+
+{% set service_cluster_ip_range = "" -%}
+{% if pillar['service_cluster_ip_range'] is defined -%}
+  {% set service_cluster_ip_range = "--service-cluster-ip-range=" + pillar['service_cluster_ip_range'] -%}
+{% endif -%}
+
+{% set cert_file = "--tls_cert_file=/etc/ssl/kubernetes/server.crt" -%}
+{% set key_file = "--tls_private_key_file=/etc/ssl/kubernetes/server.key" -%}
+{% set service_account_key = " --service_account_key_file=/etc/ssl/kubernetes/server.key " -%}
+{% set client_ca_file = "" -%}
+{% if grains['cloud'] is defined and grains.cloud in [ 'vagrant', 'c3' ]    %}
+  {% set client_ca_file = "--client_ca_file=/etc/ssl/kubernetes/ca.crt" -%}
+{% endif -%}
+{% set secure_port = "6443" -%}
+{% if grains['cloud'] is defined and grains.cloud in [ 'aws', 'gce', 'vagrant' ]    %}
+  {% set secure_port = "443" -%}
+{% endif -%}
+
+{% set token_auth_file = "--token_auth_file=/dev/null" -%}
+{% set keystone_auth_config_file = "--keystone_auth_config_file=/etc/sysconfig/keystoneauthorization.json" -%}
+{% set basic_auth_file = "" -%}
+
+{% set min_request_timeout = "" -%}
+{% if grains.minRequestTimeout is defined -%}
+  {% set min_request_timeout = "--min-request-timeout=" + grains.minRequestTimeout -%}
+{% endif -%}
+
+{% set max_requests_inflight = "--max_requests_inflight=4000" -%}
+{% if grains.maxRequestsInflight is defined -%}
+  {% set max_requests_inflight = "--max_requests_inflight=" + grains.maxRequestsInflight -%}
+{% endif -%}
+
+{% if grains.cloud is defined -%}
+{% if grains.cloud in [ 'aws', 'gce', 'vagrant', 'c3' ] -%}
+    {% set token_auth_file = "--token_auth_file=/srv/kubernetes/known_tokens.csv" -%}
+{% endif -%}
+{% endif -%}
+
+{% if grains['cloud'] is defined and grains.cloud in [ 'aws', 'gce', 'vagrant']  %}
+  {% set basic_auth_file = "--basic_auth_file=/srv/kubernetes/basic_auth.csv" -%}
+{% endif -%}
+
+{% set admission_control = "" -%}
+{% if pillar['admission_control'] is defined -%}
+ {% set admission_control = "--admission_control=" + pillar['admission_control'] -%}
+{% endif -%}
+
+{% set runtime_config = "" -%}
+{% if grains.runtime_config is defined -%}
+ {% set runtime_config = "--runtime_config=" + grains.runtime_config -%}
+{% endif -%}
+
+{% if grains.cloud == 'c3' -%}
+    {% set keystone_url = "--keystone_url=https://os-identity.vip.ebayc3.com:5443/v2.0" %}
+    {% set authorization_mode = "--authorization-mode=Keystone" %}
+    {% set authorization_policy_file = "--authorization_policy_file=/etc/sysconfig/keystoneauthorization.json" %}
+{% endif -%}
+
+# test_args has to be kept at the end, so they'll overwrite any prior configuration
+{% if pillar['apiserver_test_args'] is defined -%}
+{% set params = params + " " + pillar['apiserver_test_args'] -%}
+{% endif -%}
+
+{% set params = address + " " + etcd_servers + " " + cloud_provider + " " + cloud_config + " " + runtime_config + " " + admission_control + " " + service_cluster_ip_range + " " + client_ca_file + " " + basic_auth_file + " " + min_request_timeout + " " + max_requests_inflight -%}
+{% set params = params + " " + cluster_name + " " + cert_file + " " + key_file + " " + service_account_key + " --secure_port=" + secure_port + " " + token_auth_file + " " + bind_address + " " + pillar['log_level'] + " " + advertise_address  + " " + proxy_ssh_options + " " + keystone_url + " " + authorization_mode + " " + authorization_policy_file + " " + keystone_auth_config_file -%}
+
+
+{
+"apiVersion": "v1",
+"kind": "Pod",
+"metadata": {
+    "name":"kube-apiserver",
+    "labels": {
+        "name": "kube-apiserver"
+    }
+},
+"spec":{
+"hostNetwork": true,
+"containers":[
+    {
+    "name": "kube-apiserver",
+    "image": "gcr.io/google_containers/kube-apiserver:{{pillar['kube-apiserver_docker_tag']}}",
+    "resources": {
+      "limits": {
+        "cpu": "200m"
+      }
+    },
+    "command": [
+                 "/bin/sh",
+                 "-c",
+                 "/usr/local/bin/kube-apiserver {{params}} --allow_privileged={{pillar['allow_privileged']}} 1>>/var/log/kube-apiserver.log 2>&1"
+               ],
+    "livenessProbe": {
+      "httpGet": {
+        "path": "/healthz",
+        "port": 8080
+      },
+      "initialDelaySeconds": 15,
+      "timeoutSeconds": 15
+    },
+    "ports":[
+      { "name": "https",
+        "containerPort": {{secure_port}},
+        "hostPort": {{secure_port}}},{
+       "name": "http",
+        "containerPort": 7080,
+        "hostPort": 7080},{
+       "name": "local",
+        "containerPort": 8080,
+        "hostPort": 8080}
+        ],
+    "volumeMounts": [
+        { "name": "etchosts",
+        "mountPath": "/etc/hosts",
+        "readOnly": true},
+        { "name": "srvkube",
+        "mountPath": "/srv/kubernetes",
+        "readOnly": true},
+        { "name": "logfile",
+        "mountPath": "/var/log/kube-apiserver.log",
+        "readOnly": false},
+        { "name": "etcssl",
+        "mountPath": "/etc/ssl",
+        "readOnly": true},
+        { "name": "usrsharessl",
+        "mountPath": "/usr/share/ssl",
+        "readOnly": true},
+        { "name": "varssl",
+        "mountPath": "/var/ssl",
+        "readOnly": true},
+        { "name": "usrssl",
+        "mountPath": "/usr/ssl",
+        "readOnly": true},
+        { "name": "usrlibssl",
+        "mountPath": "/usr/lib/ssl",
+        "readOnly": true},
+        { "name": "usrlocalopenssl",
+        "mountPath": "/usr/local/openssl",
+        "readOnly": true},
+        { "name": "etcopenssl",
+        "mountPath": "/etc/openssl",
+        "readOnly": true},
+        { "name": "etcpkitls",
+        "mountPath": "/etc/pki",
+        "readOnly": true},
+        { "name": "config",
+         "mountPath": "/etc/sysconfig",
+         "readOnly": true}
+      ]
+    }
+],
+"volumes":[
+  { "name": "etchosts",
+    "hostPath": {
+        "path": "/etc/hosts"}
+  },
+  { "name": "srvkube",
+      "hostPath": {
+          "path": "/srv/kubernetes"}
+  },
+  { "name": "logfile",
+    "hostPath": {
+        "path": "/var/log/kube-apiserver.log"}
+  },
+  { "name": "etcssl",
+    "hostPath": {
+        "path": "/etc/ssl"}
+  },
+  { "name": "usrsharessl",
+    "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+        "path": "/usr/local/share/ssl"
+{% else %}
+        "path": "/usr/share/ssl"
+{% endif %}
+    }
+  },
+  { "name": "varssl",
+    "hostPath": {
+        "path": "/var/ssl"}
+  },
+  { "name": "usrssl",
+    "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+        "path": "/usr/local/ssl"
+{% else %}
+        "path": "/usr/ssl"
+{% endif %}
+    }
+  },
+  { "name": "usrlibssl",
+    "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+        "path": "/usr/local/lib/ssl"
+{% else %}
+        "path": "/usr/lib/ssl"
+{% endif %}
+    }
+  },
+  { "name": "usrlocalopenssl",
+    "hostPath": {
+        "path": "/usr/local/openssl"}
+  },
+  { "name": "etcopenssl",
+    "hostPath": {
+        "path": "/etc/openssl"}
+  },
+  { "name": "etcpkitls",
+    "hostPath": {
+        "path": "/etc/pki"}
+  },
+  { "name": "config",
+    "hostPath": {
+        "path": "/etc/sysconfig"}
+  }
+]
+}}

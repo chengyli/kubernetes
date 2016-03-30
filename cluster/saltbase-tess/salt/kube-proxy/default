@@ -1,0 +1,10 @@
+{% set daemon_args = "$DAEMON_ARGS" -%}
+{% if grains['os_family'] == 'RedHat' -%}
+	{% set daemon_args = "" -%}
+{% endif -%}
+
+{% set kubeconfig = "--kubeconfig=/var/lib/kube-proxy/kubeconfig" -%}
+
+{% set api_servers_with_port = "--master=" + pillar['api_servers_with_port'] -%}
+
+DAEMON_ARGS="{{daemon_args}} {{api_servers_with_port}} {{kubeconfig}} {{pillar['log_level']}}"

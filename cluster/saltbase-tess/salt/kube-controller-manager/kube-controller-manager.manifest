@@ -1,0 +1,166 @@
+{% set cluster_name = "" -%}
+{% set cluster_cidr = "" -%}
+{% set allocate_node_cidrs = "" -%}
+{% set sync_nodes = "--sync_nodes=true" -%}
+
+{% if pillar['node_instance_prefix'] is defined -%}
+  {% set cluster_name = "--cluster_name=" + pillar['node_instance_prefix'] -%}
+{% endif -%}
+{% if pillar['cluster_cidr'] is defined and pillar['cluster_cidr'] != "" -%}
+  {% set cluster_cidr = "--cluster-cidr=" + pillar['cluster_cidr'] -%}
+{% endif -%}
+{% if pillar['allocate_node_cidrs'] is defined -%}
+  {% set allocate_node_cidrs = "--allocate-node-cidrs=" + pillar['allocate_node_cidrs'] -%}
+{% endif -%}
+
+{% set cloud_provider = "" -%}
+{% set cloud_config = "" -%}
+
+{% if grains.cloud is defined -%}
+  {% set cloud_provider = "--cloud_provider=" + grains.cloud -%}
+
+  {% set service_account_key = " --service_account_private_key_file=/etc/ssl/kubernetes/server.key " -%}
+  {% if grains.cloud == 'gce' -%}
+    {% if grains.cloud_config is defined -%}
+      {% set cloud_config = "--cloud_config=" + grains.cloud_config -%}
+    {% endif -%}
+  {% elif grains.cloud == 'c3' -%}
+    {% set cloud_provider = "--cloud_provider=openstack" -%}
+    {% set cloud_config = "--cloud_config=/etc/sysconfig/openstack.rc" -%}
+  {% endif -%}
+{% endif -%}
+
+{% set root_ca_file = "" -%}
+{% if grains['cloud'] is defined and grains.cloud in [ 'aws', 'gce', 'vagrant', 'c3' ]    %}
+   {% set root_ca_file = "--root_ca_file=/etc/ssl/kubernetes/ca.crt" -%}
+{% endif -%}
+
+
+{% set api_servers_with_port = "--master=" + pillar['api_servers_with_port'] -%}
+
+{% set kubeconfig = "--kubeconfig=/var/lib/kube-controller/kubeconfig" -%}
+
+
+{% set params = kubeconfig + " " + api_servers_with_port + " " + cluster_name + " " + cluster_cidr + " " + allocate_node_cidrs + " " + cloud_provider  + " "  +  cloud_config + service_account_key + pillar['log_level'] + " " + root_ca_file -%}
+
+{
+"apiVersion": "v1",
+"kind": "Pod",
+"metadata": {"name":"kube-controller-manager"},
+"spec":{
+"hostNetwork": true,
+"containers":[
+    {
+    "name": "kube-controller-manager",
+    "image": "gcr.io/google_containers/kube-controller-manager:{{pillar['kube-controller-manager_docker_tag']}}",
+    "command": [
+                 "/bin/sh",
+                 "-c",
+                 "/usr/local/bin/kube-controller-manager {{params}} 1>> /var/log/kube-controller-manager.log 2>&1"
+               ],
+    "volumeMounts": [
+        { "name": "srvkube",
+        "mountPath": "/srv/kubernetes",
+        "readOnly": true},
+        { "name": "kubeconfig",
+        "mountPath": "/var/lib/kube-controller",
+        "readOnly": true},
+        { "name": "logfile",
+        "mountPath": "/var/log/kube-controller-manager.log",
+        "readOnly": false},
+        { "name": "etcssl",
+        "mountPath": "/etc/ssl",
+        "readOnly": true},
+        { "name": "usrsharessl",
+        "mountPath": "/usr/share/ssl",
+        "readOnly": true},
+        { "name": "varssl",
+        "mountPath": "/var/ssl",
+        "readOnly": true},
+        { "name": "usrssl",
+        "mountPath": "/usr/ssl",
+        "readOnly": true},
+        { "name": "usrlibssl",
+        "mountPath": "/usr/lib/ssl",
+        "readOnly": true},
+        { "name": "usrlocalopenssl",
+        "mountPath": "/usr/local/openssl",
+        "readOnly": true},
+        { "name": "config",
+        "mountPath": "/etc/sysconfig",
+        "readOnly": true},
+        { "name": "etcopenssl",
+        "mountPath": "/etc/openssl",
+        "readOnly": true},
+        { "name": "etcpkitls",
+        "mountPath": "/etc/pki",
+        "readOnly": true}
+      ]
+    }
+],
+"volumes":[
+  { "name": "srvkube",
+    "hostPath": {
+        "path": "/srv/kubernetes"}
+  },
+  { "name": "kubeconfig",
+    "hostPath": {
+        "path": "/var/lib/kube-controller"}
+  },
+  { "name": "logfile",
+    "hostPath": {
+        "path": "/var/log/kube-controller-manager.log"}
+  },
+  { "name": "etcssl",
+    "hostPath": {
+        "path": "/etc/ssl"}
+  },
+  { "name": "usrsharessl",
+    "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+        "path": "/usr/local/share/ssl"
+{% else %}
+        "path": "/usr/share/ssl"
+{% endif %}
+    }
+  },
+  { "name": "varssl",
+    "hostPath": {
+        "path": "/var/ssl"}
+  },
+  { "name": "usrssl",
+    "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+        "path": "/usr/local/ssl"
+{% else %}
+        "path": "/usr/ssl"
+{% endif %}
+    }
+  },
+  { "name": "usrlibssl",
+    "hostPath": {
+{% if grains.os_distribution is defined and grains.os_distribution == 'atomic' %}
+        "path": "/usr/local/lib/ssl"
+{% else %}
+        "path": "/usr/lib/ssl"
+{% endif %}
+    }
+  },
+  { "name": "usrlocalopenssl",
+    "hostPath": {
+        "path": "/usr/local/openssl"}
+  },
+  { "name": "etcopenssl",
+    "hostPath": {
+        "path": "/etc/openssl"}
+  },
+  { "name": "etcpkitls",
+    "hostPath": {
+        "path": "/etc/pki"}
+  },
+  { "name": "config",
+      "hostPath": {
+          "path": "/etc/sysconfig"}
+  }
+]
+}}

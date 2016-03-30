@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-apiserver
+  namespace: default
+  labels:
+    name: kube-apiserver
+spec:
+  type: LoadBalancer
+  loadBalancerIP: {{loadBalancerIP}}
+  selector:
+    name: kube-apiserver
+  ports:
+  - name: unsecure
+    port: 8080
+    targetPort: 8080
+  - name: secure
+    port: 443
+    targetPort: 6443

@@ -1,0 +1,28 @@
+/var/log/cron
+/var/log/maillog
+/var/log/secure
+/var/log/spooler
+{
+    sharedscripts
+    postrotate
+	/bin/kill -HUP `cat /var/run/syslogd.pid 2> /dev/null` 2> /dev/null || true
+    endscript
+}
+
+# rotate hourly and no need to keep older messages
+# as they are available in journald as well as ES
+/var/log/messages {
+    hourly
+    rotate 1
+    copytruncate
+    missingok
+    notifempty
+    compress
+    size 1M
+    maxsize 1M
+    create 0644 root root
+    sharedscripts
+    postrotate
+	/bin/kill -HUP `cat /var/run/syslogd.pid 2> /dev/null` 2> /dev/null || true
+    endscript
+}
