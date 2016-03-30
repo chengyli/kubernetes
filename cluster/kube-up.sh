@@ -50,7 +50,7 @@ if [[ "${KUBE_STAGE_IMAGES:-}" == "true" ]]; then
 fi
 
 echo "... calling kube-up" >&2
-kube-up
+kube-up $@
 
 echo "... calling validate-cluster" >&2
 # Override errexit
