@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//Package keystone provide authentication via keystone.
-// For details //about keystone and how to use the plugin, refer to
-// https://github.com/GoogleCloudPlatform/kubernetes/blob/oidc/docs/admin/authentication.md
 package keystone
+
+// Interface is an abstract interface for testability.  It abstracts the interface to Keystone.
+type Interface interface {
+	getTokenDetails(token string) (*Token, error)
+}
