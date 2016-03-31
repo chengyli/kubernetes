@@ -20,7 +20,7 @@
 #
 # The valid values: 'gce', 'gke', 'aws', 'vagrant', 'vsphere', 'libvirt-coreos', 'juju'
 
-KUBERNETES_PROVIDER=${KUBERNETES_PROVIDER:-gce}
+KUBERNETES_PROVIDER=${KUBERNETES_PROVIDER:-c3}
 
 # Some useful colors.
 if [[ -z "${color_start-}" ]]; then
