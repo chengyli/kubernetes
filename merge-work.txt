@@ -1,14 +1,16 @@
-unknown please-verify .drone.yml
-unknown please-verify .gitignore
-unknown please-verify api/swagger-spec/v1.json
+ashwin ours-blind .drone.yml
+ashwin upstream-good .gitignore
+ashwin upstream-blind api/swagger-spec/v1.json
 
 unknown please-verify build/common.sh
 
-unknown please-verify build/push-ci-build-swift.sh
+ashwin ours-blind build/push-ci-build-swift.sh
+
 unknown please-verify cluster/kube-down.sh
 unknown please-verify cluster/kube-env.sh
 unknown please-verify cluster/kube-flex.sh
 unknown please-verify cluster/kube-push-scp.sh
+
 haibing merged cluster/kube-up.sh
 
 vijay please-verify cluster/addons/cluster-monitoring/assertions/aggregator-controller.yaml
@@ -43,9 +45,9 @@ vijay ours-blind cluster/addons/cluster-monitoring/prometheus/prometheus-image/p
 vijay ours-blind cluster/addons/cluster-monitoring/prometheus/prometheus-image/rules.txt
 vijay ours-blind cluster/addons/cluster-monitoring/prometheus/prometheus-image/run.sh
 
-unknown please-verify cluster/addons/dns/kube-system-ns.yaml
+haibing please-verify cluster/addons/dns/kube-system-ns.yaml
 haibing merged cluster/addons/dns/skydns-rc.yaml.in
-unknown please-verify cluster/addons/dns/skydns-svc.yaml.in
+haibing please-verify cluster/addons/dns/skydns-svc.yaml.in
 
 vijay upstream-blind cluster/addons/fluentd-elasticsearch/es-controller.yaml
 vijay upstream-blind cluster/addons/fluentd-elasticsearch/es-service.yaml
@@ -60,7 +62,7 @@ vijay upstream-blind cluster/addons/fluentd-elasticsearch/kibana-image/Dockerfil
 vijay upstream-blind cluster/addons/fluentd-elasticsearch/kibana-image/kibana_dashboard_data.json
 vijay upstream-blind cluster/addons/fluentd-elasticsearch/kibana-image/run.sh
 
-unknown no cluster/addons/kube-apiserver/kube-apiserver-service.yaml
+sreekanth please-verify cluster/addons/kube-apiserver/kube-apiserver-service.yaml
 
 vijay ours-blind cluster/addons/logstash-elasticsearch/.gitigours-blindre
 vijay ours-blind cluster/addons/logstash-elasticsearch/es-data-controller.yaml
@@ -358,13 +360,13 @@ ashwin upstream-blind Godeps/_workspace/src/github.com/vishvananda/netns/netns_t
 ashwin upstream-blind Godeps/_workspace/src/github.com/vishvananda/netns/netns_unspecified.go
 ashwin upstream-blind Godeps/_workspace/src/github.com/vishvananda/netns/README.md
 
-unknown please-verify hack/ginkgo-e2e.sh
-unknown please-verify hack/local-up-base.sh
-unknown please-verify hack/local-up-kubelet.sh
-unknown please-verify hack/local-up-remaining.sh
+monica please-verify hack/ginkgo-e2e.sh
+monica please-verify hack/local-up-base.sh
+monica please-verify hack/local-up-kubelet.sh
+monica please-verify hack/local-up-remaining.sh
 ashwin ours-blind hack/tess-e2e-test.sh
-unknown please-verify hack/e2e-internal/e2e-up.sh
-unknown please-verify hack/lib/golang.sh
+monica please-verify hack/e2e-internal/e2e-up.sh
+monica please-verify hack/lib/golang.sh
 
 ashwin upstream-blind hack/verify-flags/known-flags.txt
 ashwin upstream-blind pkg/api/deep_copy_generated.go
@@ -376,25 +378,28 @@ ashwin upstream-blind pkg/api/v1/types_swagger_doc_generated.go
 sreekanth upstream-verified pkg/api/validation/validation.go
 ashwin upstream-blind pkg/api/validation/validation_test.go
 
-unknown please-verify pkg/apiserver/authn.go
-unknown please-verify pkg/apiserver/authz.go
-unknown please-verify pkg/apiserver/authz_test.go
-unknown please-verify pkg/apiserver/metrics/metrics.go
-unknown please-verify pkg/auth/authorizer/keystone/config_example.json
-unknown please-verify pkg/auth/authorizer/keystone/doc.go
-unknown please-verify pkg/auth/authorizer/keystone/keystone.go
-unknown please-verify pkg/auth/authorizer/keystone/keystone_test.go
-unknown please-verify pkg/auth/authorizer/keystone/types.go
-unknown please-verify pkg/auth/authorizer/union/union.go
-unknown please-verify pkg/auth/authorizer/union/union_test.go
-unknown please-verify pkg/client/unversioned/auth/clientauth.go
-unknown please-verify pkg/cloudprovider/openstack/openstack.go
+hibing please-verify pkg/apiserver/authn.go
+hibing please-verify pkg/apiserver/authz.go
+hibing please-verify pkg/apiserver/authz_test.go
+hibing please-verify pkg/apiserver/metrics/metrics.go
 
-unknown please-verify pkg/cloudprovider/providers/openstack/openstack.go
-unknown please-verify pkg/controller/endpoint/endpoints_controller.go
-unknown please-verify pkg/controller/endpoint/endpoints_controller_test.go
-unknown please-verify pkg/controller/persistentvolume/persistentvolume_recycler_controller.go
-unknown please-verify pkg/controller/service/servicecontroller.go
+ashwin  gone pkg/auth/authorizer/keystone/config_example.json
+ashwin  gone pkg/auth/authorizer/keystone/doc.go
+ashwin  gone pkg/auth/authorizer/keystone/keystone.go
+ashwin  gone pkg/auth/authorizer/keystone/keystone_test.go
+ashwin  gone pkg/auth/authorizer/keystone/types.go
+
+hibing please-verify pkg/auth/authorizer/union/union.go
+hibing please-verify pkg/auth/authorizer/union/union_test.go
+hibing please-verify pkg/client/unversioned/auth/clientauth.go
+
+
+sreekanth please-verify pkg/cloudprovider/openstack/openstack.go
+sreekanth please-verify pkg/cloudprovider/providers/openstack/openstack.go
+sreekanth please-verify pkg/controller/endpoint/endpoints_controller.go
+sreekanth please-verify pkg/controller/endpoint/endpoints_controller_test.go
+sreekanth please-verify pkg/controller/persistentvolume/persistentvolume_recycler_controller.go
+sreekanth please-verify pkg/controller/service/servicecontroller.go
 
 uday please-check pkg/kubelet/kubelet.go
 uday please-fix pkg/kubelet/volumes.go e210534c30f5143a23f878308d8dfb9cc8b1f9ef
@@ -413,13 +418,13 @@ sreekanth please-verify pkg/volume/cinder/cinder_test.go
 srikanth  please-verify pkg/volume/cinder/cinder_util.go
 sreekanth please-verify pkg/volume/cinder/doc.go
 
-unknown please-verify plugin/pkg/auth/authenticator/request/keystone/doc.go
-unknown please-verify plugin/pkg/auth/authenticator/request/keystone/keystone.go
-unknown please-verify plugin/pkg/auth/authenticator/request/keystone/keystone_test.go
-unknown please-verify plugin/pkg/auth/authenticator/token/keystone/keystone.go
-unknown please-verify plugin/pkg/auth/authenticator/token/keystone/keystone_test.go
-unknown please-verify plugin/pkg/auth/authenticator/token/keystone/types.go
+uday please-verify plugin/pkg/auth/authenticator/request/keystone/doc.go
+uday please-verify plugin/pkg/auth/authenticator/request/keystone/keystone.go
+uday please-verify plugin/pkg/auth/authenticator/request/keystone/keystone_test.go
+uday please-verify plugin/pkg/auth/authenticator/token/keystone/keystone.go
+uday please-verify plugin/pkg/auth/authenticator/token/keystone/keystone_test.go
+uday please-verify plugin/pkg/auth/authenticator/token/keystone/types.go
 
-unknown please-verify test/e2e/density.go
-unknown please-verify test/e2e/e2e_test.go
-unknown please-verify test/e2e/util.go
+kchitta please-verify test/e2e/density.go
+kchitta please-verify test/e2e/e2e_test.go
+kchitta please-verify test/e2e/util.go

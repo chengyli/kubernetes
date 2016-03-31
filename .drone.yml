@@ -1,0 +1,38 @@
+image: unicell/dind-go-osclients
+env:
+  - CI=drone
+  - KUBE_SKIP_CONFIRMATIONS=y
+script:
+  - wrapdocker && sleep 2
+  - ./hack/travis/install-etcd.sh
+  - ./hack/verify-gofmt.sh
+  - ./hack/verify-boilerplate.sh
+  - ./hack/verify-description.sh
+  - ./hack/verify-flags-underscore.py
+  - ./hack/verify-generated-conversions.sh
+  - ./hack/verify-generated-deep-copies.sh
+  - ./hack/verify-generated-docs.sh
+  - ./hack/verify-linkcheck.sh
+  - ./hack/build-go.sh
+  - OS_AUTH_URL="" KUBE_RACE="-race" KUBE_COVER="y" KUBE_GOVERALLS_BIN="$HOME/gopath/bin/goveralls" KUBE_TIMEOUT='-timeout 300s' KUBE_COVERPROCS=8 KUBE_TEST_API_VERSIONS="v1" KUBE_TEST_ETCD_PREFIXES="kubernetes.io/registry" ./hack/test-go.sh -- -p=2
+  - PATH=$HOME/gopath/bin:./third_party/etcd:$PATH ./hack/test-cmd.sh
+  - PATH=$HOME/gopath/bin:./third_party/etcd:$PATH KUBE_TEST_API_VERSIONS="v1" KUBE_INTEGRATION_TEST_MAX_CONCURRENCY=4 LOG_LEVEL=4 ./hack/test-integration.sh
+notify:
+  slack:
+    webhook_url: 'https://hooks.slack.com/services/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'
+    username: 'drone'
+    channel: '#ci'
+    on_started: true
+    on_success: true
+    on_failure: true
+publish:
+  swift:
+    script:
+        - make quick-release
+        - build/push-ci-build-swift.sh 
+    username: $api_key
+    password: $api_secret
+    auth_url: $authurl
+    region: $region
+    container: snapshots
+    source: _output/release-tars/
