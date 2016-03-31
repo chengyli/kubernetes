@@ -560,8 +560,8 @@ var _ = Describe("Density", func() {
 				err := DeleteRC(c, ns, RCName)
 				if err != nil {
 					fmt.Fprintf(GinkgoWriter, nowStamp()+
-					": INFO: Error in deleting RC (Knowingly Caused by Node not ready) "+
-					err.Error()+"\n")
+						": INFO: Error in deleting RC (Knowingly Caused by Node not ready) "+
+						err.Error()+"\n")
 				}
 				expectNoError(err)
 			}
