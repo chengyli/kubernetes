@@ -61,6 +61,10 @@ func RegisterFlags() {
 	// Randomize specs as well as suites
 	config.GinkgoConfig.RandomizeAllSpecs = true
 
+	//Tess#588 overwrite the density test parameter, default as 2
+	flag.IntVar(&testContext.PodsPerNodeInDensity, "pods-per-node-in-density", 2, "If set, will  overwrite the number of pods per node in density.")
+	glog.Info("Init density value: %v.", testContext.PodsPerNodeInDensity)
+
 	flag.StringVar(&testContext.KubeConfig, clientcmd.RecommendedConfigPathFlag, os.Getenv(clientcmd.RecommendedConfigPathEnvVar), "Path to kubeconfig containing embedded authinfo.")
 	flag.StringVar(&testContext.KubeContext, clientcmd.FlagContext, "", "kubeconfig context to use/override. If unset, will use value from 'current-context'")
 	flag.StringVar(&testContext.KubeVolumeDir, "volume-dir", "/var/lib/kubelet", "Path to the directory containing the kubelet volumes.")

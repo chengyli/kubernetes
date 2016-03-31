@@ -189,6 +189,7 @@ type TestContextType struct {
 	VerifyServiceAccount  bool
 	DeleteNamespace       bool
 	CleanStart            bool
+	PodsPerNodeInDensity  int
 	// If set to true framework will start a goroutine monitoring resource usage of system add-ons.
 	// It will read the data every 30 seconds from all Nodes and print summary during afterEach.
 	GatherKubeSystemResourceUsageData bool
@@ -3653,4 +3654,9 @@ func CoreDump(dir string) {
 	if err := cmd.Run(); err != nil {
 		Logf("Error running cluster/log-dump.sh: %v", err)
 	}
+}
+
+//Tess#588
+func getPodsPerNodeForDensityTest() int {
+	return testContext.PodsPerNodeInDensity
 }
