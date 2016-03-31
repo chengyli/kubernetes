@@ -28,6 +28,7 @@ import (
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/request/keystone"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/request/union"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/request/x509"
+	keystoneToken "k8s.io/kubernetes/plugin/pkg/auth/authenticator/token/keystone"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/token/oidc"
 	"k8s.io/kubernetes/plugin/pkg/auth/authenticator/token/tokenfile"
 )
@@ -45,6 +46,7 @@ type AuthenticatorConfig struct {
 	ServiceAccountLookup      bool
 	ServiceAccountTokenGetter serviceaccount.ServiceAccountTokenGetter
 	KeystoneURL               string
+	KeystoneAuthConfigFile    string
 }
 
 // New returns an authenticator.Request or an error that supports the standard
@@ -100,6 +102,14 @@ func New(config AuthenticatorConfig) (authenticator.Request, error) {
 		authenticators = append(authenticators, keystoneAuth)
 	}
 
+	if len(config.KeystoneAuthConfigFile) > 0 {
+		keystoneTokenAuth, err := newKeystoneTokenAuthenticatorFromConfigFile(config.KeystoneAuthConfigFile)
+		if err != nil {
+			return nil, err
+		}
+		authenticators = append(authenticators, keystoneTokenAuth)
+	}
+
 	switch len(authenticators) {
 	case 0:
 		return nil, nil
@@ -129,6 +139,16 @@ func newAuthenticatorFromBasicAuthFile(basicAuthFile string) (authenticator.Requ
 // newAuthenticatorFromTokenFile returns an authenticator.Request or an error
 func newAuthenticatorFromTokenFile(tokenAuthFile string) (authenticator.Request, error) {
 	tokenAuthenticator, err := tokenfile.NewCSV(tokenAuthFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return bearertoken.New(tokenAuthenticator), nil
+}
+
+// newAuthenticatorFromTokenFile returns an authenticator.Request or an error
+func newKeystoneTokenAuthenticatorFromConfigFile(keystoneConfigFile string) (authenticator.Request, error) {
+	tokenAuthenticator, err := keystoneToken.NewKeystoneTokenAuthenticator(keystoneConfigFile)
 	if err != nil {
 		return nil, err
 	}
