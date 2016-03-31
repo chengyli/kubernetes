@@ -127,6 +127,8 @@ var _ = Describe("Density", func() {
 	var totalPods int
 	var nodeCpuCapacity int64
 	var nodeMemCapacity int64
+	//Tess#588
+	var podsPerNodeOverwritten int
 
 	// Gathers data prior to framework namespace teardown
 	AfterEach(func() {
@@ -162,6 +164,8 @@ var _ = Describe("Density", func() {
 	BeforeEach(func() {
 		c = framework.Client
 		ns = framework.Namespace.Name
+		//Tess#588
+		podsPerNodeOverwritten = getPodsPerNodeForDensityTest()
 
 		nodes := ListSchedulableNodesOrDie(c)
 		nodeCount = len(nodes.Items)
@@ -206,11 +210,13 @@ var _ = Describe("Density", func() {
 
 	densityTests := []Density{
 		// TODO: Expose runLatencyTest as ginkgo flag.
-		{podsPerNode: 3, runLatencyTest: false, interval: 10 * time.Second},
+		// Tess#588 pass as 0 for the parameter to be replaced by podsPerNodeOverwritten
+		{podsPerNode: 0, runLatencyTest: true, interval: 10 * time.Second},
+		/*{podsPerNode: 3, runLatencyTest: false, interval: 10 * time.Second},
 		{podsPerNode: 30, runLatencyTest: true, interval: 10 * time.Second},
 		{podsPerNode: 50, runLatencyTest: false, interval: 10 * time.Second},
 		{podsPerNode: 95, runLatencyTest: true, interval: 10 * time.Second},
-		{podsPerNode: 100, runLatencyTest: false, interval: 1 * time.Second},
+		{podsPerNode: 100, runLatencyTest: false, interval: 1 * time.Second},*/
 	}
 
 	for _, testArg := range densityTests {
@@ -226,6 +232,12 @@ var _ = Describe("Density", func() {
 		}
 		itArg := testArg
 		It(name, func() {
+			//Tess#588 replace parameter when it is 0
+			if itArg.podsPerNode == 0 {
+				itArg.podsPerNode = podsPerNodeOverwritten
+				Logf("Parameter Replaced: podsPerNode = %v now.", itArg.podsPerNode)
+			}
+
 			podsPerNode := itArg.podsPerNode
 			totalPods = podsPerNode * nodeCount
 			RCName = "density" + strconv.Itoa(totalPods) + "-" + uuid
@@ -546,6 +558,11 @@ var _ = Describe("Density", func() {
 			if err == nil && rc.Spec.Replicas != 0 {
 				By("Cleaning up the replication controller")
 				err := DeleteRC(c, ns, RCName)
+				if err != nil {
+					fmt.Fprintf(GinkgoWriter, nowStamp()+
+					": INFO: Error in deleting RC (Knowingly Caused by Node not ready) "+
+					err.Error()+"\n")
+				}
 				expectNoError(err)
 			}
 
