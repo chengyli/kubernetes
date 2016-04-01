@@ -19,11 +19,12 @@ package tessnet
 import (
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
-	"k8s.io/kubernetes/pkg/kubelet/network"
-	kubeletTypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"net"
 	"time"
+
+	"github.com/golang/glog"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
+	"k8s.io/kubernetes/pkg/kubelet/network"
 )
 
 const MaxRetries = 5
@@ -51,11 +52,16 @@ func (plugin *networkPlugin) Init(host network.Host) (err error) {
 	return
 }
 
+func (plugin *networkPlugin) Event(name string, details map[string]interface{}) {
+	// TODO: implement this @spothanis @udayr
+	glog.V(2).Infof("NOP")
+}
+
 func (plugin *networkPlugin) Name() string {
 	return plugin.name
 }
 
-func (plugin *networkPlugin) SetUpPod(namespace string, name string, id kubeletTypes.DockerID) error {
+func (plugin *networkPlugin) SetUpPod(namespace string, name string, id kubecontainer.DockerID) error {
 	glog.V(2).Infof("SetUpPod for %s/%s: %s", namespace, name, id)
 
 	container, err := plugin.tess.DockerClient.InspectContainer(string(id))
@@ -83,7 +89,7 @@ func (plugin *networkPlugin) SetUpPod(namespace string, name string, id kubeletT
 	return nil
 }
 
-func (plugin *networkPlugin) TearDownPod(namespace string, name string, id kubeletTypes.DockerID) error {
+func (plugin *networkPlugin) TearDownPod(namespace string, name string, id kubecontainer.DockerID) error {
 	container, err := plugin.tess.DockerClient.InspectContainer(string(id))
 	if err != nil {
 		glog.Errorf("During teardown of pod: %s, failed to inspect container: %s", name, id)
@@ -101,7 +107,7 @@ func (plugin *networkPlugin) TearDownPod(namespace string, name string, id kubel
 // TODO verify veth pair is properly set up. One end in the container with ip
 // The other on the ovs bridge
 // http://ewen.mcneill.gen.nz/blog/entry/2014-10-12-finding-docker-containers-connection-to-openvswitch/
-func (plugin *networkPlugin) Status(namespace string, name string, podInfraContainerID kubeletTypes.DockerID) (*network.PodNetworkStatus, error) {
+func (plugin *networkPlugin) Status(namespace string, name string, podInfraContainerID kubecontainer.DockerID) (*network.PodNetworkStatus, error) {
 	container, err := plugin.tess.DockerClient.InspectContainer(string(podInfraContainerID))
 	if err != nil {
 		glog.Errorf("Status check of pod: %s, failed to inspect container: %s", name, podInfraContainerID)

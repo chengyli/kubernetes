@@ -26,6 +26,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/network/cni"
 	"k8s.io/kubernetes/pkg/kubelet/network/exec"
 	"k8s.io/kubernetes/pkg/kubelet/network/kubenet"
+	"k8s.io/kubernetes/pkg/kubelet/network/tessnet"
 	// Volume plugins
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/aws_ebs"
@@ -93,6 +94,7 @@ func ProbeNetworkPlugins(pluginDir string) []network.NetworkPlugin {
 	allPlugins = append(allPlugins, exec.ProbeNetworkPlugins(pluginDir)...)
 	allPlugins = append(allPlugins, cni.ProbeNetworkPlugins(pluginDir)...)
 	allPlugins = append(allPlugins, kubenet.NewPlugin())
+	allPlugins = append(allPlugins, tessnet.ProbeNetworkPlugins()...)
 
 	return allPlugins
 }
