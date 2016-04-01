@@ -950,7 +950,7 @@ func (os *OpenStack) Routes() (cloudprovider.Routes, bool) {
 }
 
 // Attaches given cinder volume to the compute running kubelet
-func (os *OpenStack) AttachDisk(diskName string) (string, error) {
+func (os *OpenStack) AttachDisk(diskName string, detachable bool, computeUUID string) (string, error) {
 	disk, err := os.getVolume(diskName)
 	if err != nil {
 		return "", err
@@ -968,9 +968,24 @@ func (os *OpenStack) AttachDisk(diskName string) (string, error) {
 			glog.V(4).Infof("Disk: %q is already attached to compute: %q", diskName, os.localInstanceID)
 			return disk.ID, nil
 		} else {
-			errMsg := fmt.Sprintf("Disk %q is attached to a different compute: %q, should be detached before proceeding", diskName, disk.Attachments[0]["server_id"])
-			glog.Errorf(errMsg)
-			return "", errors.New(errMsg)
+
+			if detachable {
+				glog.V(2).Infof("Disk %s is detachable.. attempting to detach from %s", disk.ID, disk.Attachments[0]["server_id"])
+				if id, ok := disk.Attachments[0]["server_id"].(string); ok {
+					err := os.DetachDisk(disk.ID, id)
+					if err != nil {
+						return "", err
+					}
+					glog.V(2).Infof("Disk %s detach successful from compute: %s continuing to attach with a different compute: %s", disk.ID, disk.Attachments[0]["server_id"], computeUUID)
+				} else {
+					glog.Errorf("Failed to find compute to which disk: %s is connected", disk.ID)
+				}
+			} else {
+
+				errMsg := fmt.Sprintf("Disk %q is attached to a different compute: %q, should be detached before proceeding", diskName, disk.Attachments[0]["server_id"])
+				glog.Errorf(errMsg)
+				return "", errors.New(errMsg)
+			}
 		}
 	}
 	// add read only flag here if possible spothanis
@@ -986,7 +1001,7 @@ func (os *OpenStack) AttachDisk(diskName string) (string, error) {
 }
 
 // Detaches given cinder volume from the compute running kubelet
-func (os *OpenStack) DetachDisk(partialDiskId string) error {
+func (os *OpenStack) DetachDisk(partialDiskId string, computeUUID string) error {
 	disk, err := os.getVolume(partialDiskId)
 	if err != nil {
 		return err
@@ -998,17 +1013,17 @@ func (os *OpenStack) DetachDisk(partialDiskId string) error {
 		glog.Errorf("Unable to initialize nova client for region: %s", os.region)
 		return err
 	}
-	if len(disk.Attachments) > 0 && disk.Attachments[0]["server_id"] != nil && os.localInstanceID == disk.Attachments[0]["server_id"] {
+	if len(disk.Attachments) > 0 && disk.Attachments[0]["server_id"] != nil && computeUUID == disk.Attachments[0]["server_id"] {
 		// This is a blocking call and effects kubelet's performance directly.
 		// We should consider kicking it out into a separate routine, if it is bad.
-		err = volumeattach.Delete(cClient, os.localInstanceID, disk.ID).ExtractErr()
+		err = volumeattach.Delete(cClient, computeUUID, disk.ID).ExtractErr()
 		if err != nil {
-			glog.Errorf("Failed to delete volume %s from compute %s attached %v", disk.ID, os.localInstanceID, err)
+			glog.Errorf("Failed to delete volume %s from compute %s attached %v", disk.ID, computeUUID, err)
 			return err
 		}
-		glog.V(2).Infof("Successfully detached volume: %s from compute: %s", disk.ID, os.localInstanceID)
+		glog.V(2).Infof("Successfully detached volume: %s from compute: %s", disk.ID, computeUUID)
 	} else {
-		errMsg := fmt.Sprintf("Disk: %s has no attachments or is not attached to compute: %s", disk.Name, os.localInstanceID)
+		errMsg := fmt.Sprintf("Disk: %s has no attachments or is not attached to compute: %s", disk.Name, computeUUID)
 		glog.Errorf(errMsg)
 		return errors.New(errMsg)
 	}

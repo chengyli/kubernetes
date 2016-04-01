@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/volume"
@@ -42,7 +43,8 @@ func (util *CinderDiskUtil) AttachDisk(b *cinderVolumeBuilder, globalPDPath stri
 	if err != nil {
 		return err
 	}
-	diskid, err := cloud.AttachDisk(b.pdName)
+	uuid, err := getNodeExternalId(b.cinderVolume)
+	diskid, err := cloud.AttachDisk(b.pdName, b.detachable, uuid)
 	if err != nil {
 		return err
 	}
@@ -89,6 +91,20 @@ func (util *CinderDiskUtil) AttachDisk(b *cinderVolumeBuilder, globalPDPath stri
 	return nil
 }
 
+// Get external id of the node from api server.
+func getNodeExternalId(cd *cinderVolume) (string, error) {
+	node, err := cd.plugin.host.GetKubeClient().Core().Nodes().Get(cd.plugin.host.GetNodeName())
+	if err != nil {
+		glog.Errorf("Failed getting node's external id with error: %s", err.Error())
+		return "", err
+	}
+	if len(node.Status.NodeInfo.SystemUUID) == 0 {
+		return "", fmt.Errorf("Failed to retrieve system uuid for node: %s", node.Name)
+	}
+	glog.V(4).Infof("Found uuid: %s for node: %s", node.Status.NodeInfo.SystemUUID, node.Name)
+	return strings.ToLower(node.Status.NodeInfo.SystemUUID), nil
+}
+
 func makeDevicePath(diskid string) string {
 	files, _ := ioutil.ReadDir("/dev/disk/by-id/")
 	for _, f := range files {
@@ -119,8 +135,11 @@ func (util *CinderDiskUtil) DetachDisk(cd *cinderVolumeCleaner) error {
 	if err != nil {
 		return err
 	}
-
-	if err = cloud.DetachDisk(cd.pdName); err != nil {
+	uuid, err := getNodeExternalId(cd.cinderVolume)
+	if err != nil {
+		return nil
+	}
+	if err = cloud.DetachDisk(cd.pdName, uuid); err != nil {
 		return err
 	}
 	glog.V(2).Infof("Successfully detached cinder volume %s", cd.pdName)

@@ -80,10 +80,12 @@ func (plugin *cinderPlugin) NewBuilder(spec *volume.Spec, pod *api.Pod, _ volume
 
 func (plugin *cinderPlugin) newBuilderInternal(spec *volume.Spec, podUID types.UID, manager cdManager, mounter mount.Interface) (volume.Builder, error) {
 	var cinder *api.CinderVolumeSource
+	var detachable bool
 	if spec.Volume != nil && spec.Volume.Cinder != nil {
 		cinder = spec.Volume.Cinder
 	} else {
 		cinder = spec.PersistentVolume.Spec.Cinder
+		detachable = true
 	}
 
 	pdName := cinder.VolumeID
@@ -92,12 +94,13 @@ func (plugin *cinderPlugin) newBuilderInternal(spec *volume.Spec, podUID types.U
 
 	return &cinderVolumeBuilder{
 		cinderVolume: &cinderVolume{
-			podUID:  podUID,
-			volName: spec.Name(),
-			pdName:  pdName,
-			mounter: mounter,
-			manager: manager,
-			plugin:  plugin,
+			podUID:     podUID,
+			volName:    spec.Name(),
+			pdName:     pdName,
+			mounter:    mounter,
+			manager:    manager,
+			plugin:     plugin,
+			detachable: detachable,
 		},
 		fsType:             fsType,
 		readOnly:           readOnly,
@@ -209,6 +212,7 @@ type cinderVolume struct {
 	blockDeviceMounter mount.Interface
 	plugin             *cinderPlugin
 	volume.MetricsNil
+	detachable bool
 }
 
 func detachDiskLogError(cd *cinderVolume) {

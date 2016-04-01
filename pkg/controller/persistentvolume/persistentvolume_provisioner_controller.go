@@ -526,6 +526,10 @@ func (c *PersistentVolumeProvisionerController) GetHostName() string {
 	return ""
 }
 
+func (c *PersistentVolumeProvisionerController) GetNodeName() string {
+	return ""
+}
+
 const (
 	// these pair of constants are used by the provisioner.
 	// The key is a kube namespaced key that denotes a volume requires provisioning.

@@ -180,6 +180,9 @@ type VolumeHost interface {
 
 	// Returns the hostname of the host kubelet is running on
 	GetHostName() string
+
+	//Get Node name; this is appropriately set during kubelet initialization
+	GetNodeName() string
 }
 
 // VolumePluginMgr tracks registered plugins.
