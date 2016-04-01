@@ -2,12 +2,12 @@ ashwin ours-blind .drone.yml
 ashwin upstream-good .gitignore
 ashwin upstream-blind api/swagger-spec/v1.json
 
-unknown please-verify build/common.sh
+haibing merged build/common.sh
 
 ashwin ours-blind build/push-ci-build-swift.sh
 
-unknown please-verify cluster/kube-down.sh
-unknown please-verify cluster/kube-env.sh
+haibing please-verify cluster/kube-down.sh
+haibing please-verify cluster/kube-env.sh
 unknown please-verify cluster/kube-flex.sh
 unknown please-verify cluster/kube-push-scp.sh
 
@@ -378,8 +378,8 @@ ashwin upstream-blind pkg/api/v1/types_swagger_doc_generated.go
 sreekanth upstream-verified pkg/api/validation/validation.go
 ashwin upstream-blind pkg/api/validation/validation_test.go
 
-hibing please-verify pkg/apiserver/authn.go
-hibing please-verify pkg/apiserver/authz.go
+ashwin gone pkg/apiserver/authn.go
+hibing merged pkg/apiserver/authz.go
 hibing please-verify pkg/apiserver/authz_test.go
 hibing please-verify pkg/apiserver/metrics/metrics.go
 
