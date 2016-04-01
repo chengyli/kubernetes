@@ -22,7 +22,6 @@ import (
 
 	"k8s.io/kubernetes/pkg/auth/authorizer"
 	"k8s.io/kubernetes/pkg/auth/authorizer/abac"
-	"k8s.io/kubernetes/pkg/auth/authorizer/keystone"
 	"k8s.io/kubernetes/pkg/auth/authorizer/union"
 	"k8s.io/kubernetes/plugin/pkg/auth/authorizer/webhook"
 )
@@ -63,11 +62,10 @@ const (
 	ModeAlwaysDeny  string = "AlwaysDeny"
 	ModeABAC        string = "ABAC"
 	ModeWebhook     string = "Webhook"
-	ModeKeystone    string = "Keystone"
 )
 
 // Keep this list in sync with constant list above.
-var AuthorizationModeChoices = []string{ModeAlwaysAllow, ModeAlwaysDeny, ModeABAC, ModeWebhook, ModeKeystone}
+var AuthorizationModeChoices = []string{ModeAlwaysAllow, ModeAlwaysDeny, ModeABAC, ModeWebhook}
 
 type AuthorizationConfig struct {
 	// Options for ModeABAC
@@ -121,12 +119,6 @@ func NewAuthorizerFromAuthorizationConfig(authorizationModes []string, config Au
 				return nil, err
 			}
 			authorizers = append(authorizers, webhookAuthorizer)
-		case ModeKeystone:
-			keystoneAuthorizer, err := keystone.NewKeystoneAuthorizer(config.PolicyFile, 60)
-			if err != nil {
-				return nil, err
-			}
-			authorizers = append(authorizers, keystoneAuthorizer)
 		default:
 			return nil, fmt.Errorf("Unknown authorization mode %s specified", authorizationMode)
 		}
