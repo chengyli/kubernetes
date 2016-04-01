@@ -62,7 +62,7 @@ EOF
   if [[ ${1:-} == "master" ]]; then
     (
       echo "[LoadBalancer]"
-      echo "floatingip-net-id=${FLOATINGIP_NET_ID}"
+      echo "floating-network-id=${FLOATINGIP_NET_ID}"
       echo "subnet-id=${LB_SUBNET_ID}"
     ) >> /etc/sysconfig/openstack.rc
   fi
@@ -121,13 +121,13 @@ gen-grains() {
   local -r SUBNET=$3
   local -r BRIDGE_IP=$4
   local -r DOCKER_FIXED_SUBNET=$5
-  
+
   if [[ "${master}" == "true" ]]; then
     local salt_role=kubernetes-master
   else
     local salt_role=kubernetes-pool
   fi
-  
+
   if [[ "${atomic}" == "true" ]]; then
     local host_domain=""
   else
@@ -135,7 +135,7 @@ gen-grains() {
   fi
 
   cat <<EOF >/etc/salt/minion.d/grains.conf
-grains:  
+grains:
   roles:
     - $(echo $salt_role)
   ${IS_SALT_MASTER:+  - salt-master}
@@ -155,7 +155,7 @@ EOF
   if [[ "${atomic}" == "true" ]]; then
     echo "  os_distribution: atomic" >> /etc/salt/minion.d/grains.conf
   fi
-  
+
   if [[ "${master}" == "true" ]]; then
     cat <<EOF >>/etc/salt/minion.d/grains.conf
   node_ip: '$(echo "$node_ip" | sed -e "s/'/''/g")'
@@ -174,7 +174,7 @@ EOF
       echo "  apiservers: $(echo "$APISERVER_LB_IP")" >> /etc/salt/minion.d/grains.conf
     fi
   fi
-  
+
   DOCKER_OPTS=""
   if [[ -n "${EXTRA_DOCKER_OPTS}" ]]; then
     DOCKER_OPTS="${EXTRA_DOCKER_OPTS}"

@@ -63,6 +63,12 @@
 {% if grains['cloud'] is defined and grains.cloud in [ 'vagrant', 'c3' ]    %}
   {% set client_ca_file = "--client_ca_file=/etc/ssl/kubernetes/ca.crt" -%}
 {% endif -%}
+
+# the ca certificate for etcd requires another parameter
+{% if grains['cloud'] is defined and grains.cloud in [ 'vagrant', 'c3' ]    %}
+  {% set etcd_ca_file = "--etcd-cafile==/etc/ssl/kubernetes/ca.crt" -%}
+{% endif -%}
+
 {% set secure_port = "6443" -%}
 {% if grains['cloud'] is defined and grains.cloud in [ 'aws', 'gce', 'vagrant' ]    %}
   {% set secure_port = "443" -%}
@@ -115,7 +121,7 @@
 
 {% set params = address + " " + etcd_servers + " " + cloud_provider + " " + cloud_config + " " + runtime_config + " " + admission_control + " " + service_cluster_ip_range + " " + client_ca_file + " " + basic_auth_file + " " + min_request_timeout + " " + max_requests_inflight -%}
 {% set params = params + " " + cluster_name + " " + cert_file + " " + key_file + " " + service_account_key + " --secure_port=" + secure_port + " " + token_auth_file + " " + bind_address + " " + pillar['log_level'] + " " + advertise_address  + " " + proxy_ssh_options + " " + keystone_url + " " + authorization_mode + " " + authorization_policy_file + " " + keystone_auth_config_file -%}
-
+{% set params = params + " " + etcd_ca_file -%}
 
 {
 "apiVersion": "v1",
@@ -162,6 +168,9 @@
         "hostPort": 8080}
         ],
     "volumeMounts": [
+        { "name": "instanceid",
+        "mountPath": "/var/lib/cloud/data/instance-id",
+        "readOnly": true},
         { "name": "etchosts",
         "mountPath": "/etc/hosts",
         "readOnly": true},
@@ -202,6 +211,10 @@
     }
 ],
 "volumes":[
+  { "name": "instanceid",
+    "hostPath": {
+        "path": "/var/lib/cloud/data/instance-id"}
+  },
   { "name": "etchosts",
     "hostPath": {
         "path": "/etc/hosts"}
