@@ -34,6 +34,9 @@ KUBE_ROOT=$PWD
 
 source hack/lib/init.sh
 
+# Tess options
+readonly KUBE_TESS_SALTBASE="${KUBE_TESS_SALTBASE:-saltbase-tess}"
+
 # Incoming options
 #
 readonly KUBE_SKIP_CONFIRMATIONS="${KUBE_SKIP_CONFIRMATIONS:-n}"
@@ -94,7 +97,7 @@ readonly GCS_STAGE="${LOCAL_OUTPUT_ROOT}/gcs-stage"
 # Get the set of master binaries that run in Docker (on Linux)
 # Entry format is "<name-of-binary>,<base-image>".
 # Binaries are placed in /usr/local/bin inside the image.
-# 
+#
 # $1 - server architecture
 kube::build::get_docker_wrapped_binaries() {
   case $1 in
@@ -908,7 +911,11 @@ function kube::release::package_salt_tarball() {
   rm -rf "${release_stage}"
   mkdir -p "${release_stage}"
 
-  cp -R "${KUBE_ROOT}/cluster/saltbase" "${release_stage}/"
+  if [[ ! -z ${KUBE_TESS_SALTBASE} ]]; then
+    cp -R "${KUBE_ROOT}/cluster/${KUBE_TESS_SALTBASE}" "${release_stage}/saltbase"
+  else
+    cp -R "${KUBE_ROOT}/cluster/saltbase" "${release_stage}/"
+  fi
 
   # TODO(#3579): This is a temporary hack. It gathers up the yaml,
   # yaml.in, json files in cluster/addons (minus any demos) and overlays
@@ -1021,6 +1028,7 @@ function kube::release::package_full_tarball() {
   # server.
   cp -R "${KUBE_ROOT}/cluster" "${release_stage}/"
   rm -rf "${release_stage}/cluster/saltbase"
+  rm -rf "${release_stage}/cluster/${KUBE_TESS_SALTBASE}"
 
   mkdir -p "${release_stage}/server"
   cp "${RELEASE_DIR}/kubernetes-salt.tar.gz" "${release_stage}/server/"
@@ -1502,6 +1510,103 @@ function kube::release::gcs::publish() {
 }
 
 # ---------------------------------------------------------------------------
+# Swift Release
+
+function kube::release::swift::release() {
+  [[ ${KUBE_SWIFT_UPLOAD_RELEASE} =~ ^[yY]$ ]] || return 0
+
+  kube::release::swift::verify_prereqs
+  kube::release::swift::copy_release_artifacts
+}
+
+# Verify things are set up for uploading to Swift
+function kube::release::swift::verify_prereqs() {
+  if [[ -z "$(which swift)" ]]; then
+    echo "Releasing Kubernetes requires python-swiftclient."
+    return 1
+  fi
+
+  if [[ -z "${OS_TENANT_NAME-}" ]]; then
+    echo "Releasing Kubernetes requires OS_TENANT_NAME env variable set."
+    return 1
+  fi
+}
+
+function kube::release::swift::copy_release_artifacts() {
+  # TODO: This isn't atomic.  There will be points in time where there will be
+  # no active release.  Also, if something fails, the release could be half-
+  # copied.  The real way to do this would perhaps to have some sort of release
+  # version so that we are never overwriting a destination.
+  local -r swift_destination="${KUBE_SWIFT_RELEASE_BUCKET}${KUBE_SWIFT_RELEASE_PREFIX}"
+  local gcs_options=()
+
+  echo "+++ Copying release artifacts to ${swift_destination}"
+
+  # First delete all objects at the destination
+  if swift list | grep "${swift_destination}" >/dev/null 2>&1; then
+    echo "!!! ${swift_destination} not empty."
+    [[ ${KUBE_SKIP_CONFIRMATIONS} =~ ^[yY]$ ]] || {
+        read -p "Delete everything under ${swift_destination}? [y/n] " -r || {
+          echo "EOF on prompt.  Skipping upload"
+          return
+        }
+        [[ $REPLY =~ ^[yY]$ ]] || {
+          echo "Skipping upload"
+          return
+        }
+    }
+
+    swift delete "${swift_destination}"
+  fi
+
+  # Now upload everything in release directory
+  pushd ${RELEASE_DIR} > /dev/null
+  swift upload "${swift_destination}" *
+  popd
+
+  # Upload the "naked" binaries to Swift. This is for install scripts that
+  # download the binaries directly and don't need tars.
+  local platform platforms
+  platforms=($(cd "${RELEASE_STAGE}/client" ; echo *))
+  for platform in "${platforms[@]}"; do
+    local src="${RELEASE_STAGE}/client/${platform}/kubernetes/client/bin/*"
+    local dst="${swift_destination}/bin/${platform/-//}/"
+    # We assume here the "server package" is a superset of the "client package"
+    if [[ -d "${RELEASE_STAGE}/server/${platform}" ]]; then
+      src="${RELEASE_STAGE}/server/${platform}/kubernetes/server/bin/*"
+    fi
+    pushd $(dirname ${src}) > /dev/null
+    swift upload "$dst" *
+    popd
+  done
+
+  if [[ ${KUBE_SWIFT_MAKE_PUBLIC} =~ ^[yY]$ ]]; then
+    echo "+++ Marking all uploaded objects public"
+    swift post "${swift_destination}" -r '.r:*' > /dev/null
+  fi
+
+  swift list "${swift_destination}"
+}
+
+function kube::release::swift::publish_latest() {
+  local upload_dir="${RELEASE_STAGE}/upload"
+
+  mkdir -p "${upload_dir}"
+  echo ${KUBE_SWIFT_LATEST_CONTENTS} > "${upload_dir}/${KUBE_SWIFT_LATEST_FILE}"
+
+  pushd "${upload_dir}"
+  swift upload "${KUBE_SWIFT_RELEASE_BUCKET}" "${KUBE_SWIFT_LATEST_FILE}"
+  popd
+
+  if [[ ${KUBE_SWIFT_MAKE_PUBLIC} =~ ^[yY]$ ]]; then
+    swift post "${KUBE_SWIFT_RELEASE_BUCKET}" -r '.r:*' > /dev/null
+  fi
+
+  swift_endpoint=$(keystone endpoint-get --service object-store | awk '/ object-store.publicURL / { print $4 }')
+  echo "+++ cat ${KUBE_SWIFT_RELEASE_BUCKET}/${KUBE_SWIFT_LATEST_FILE}:"
+  curl -sS -L -k --connect-timeout 20 --retry 6 --retry-delay 10 "${swift_endpoint}/${KUBE_SWIFT_RELEASE_BUCKET}/${KUBE_SWIFT_LATEST_FILE}"
+}
+
 # Docker Release
 
 # Releases all docker images to a docker registry specified by KUBE_DOCKER_REGISTRY
