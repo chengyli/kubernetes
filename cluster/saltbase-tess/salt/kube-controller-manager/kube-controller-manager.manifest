@@ -59,6 +59,9 @@
                  "/usr/local/bin/kube-controller-manager {{params}} 1>> /var/log/kube-controller-manager.log 2>&1"
                ],
     "volumeMounts": [
+        { "name": "instanceid",
+        "mountPath": "/var/lib/cloud/data/instance-id",
+        "readOnly": true},
         { "name": "srvkube",
         "mountPath": "/srv/kubernetes",
         "readOnly": true},
@@ -99,6 +102,10 @@
     }
 ],
 "volumes":[
+  { "name": "instanceid",
+    "hostPath": {
+        "path": "/var/lib/cloud/data/instance-id"}
+  },
   { "name": "srvkube",
     "hostPath": {
         "path": "/srv/kubernetes"}
