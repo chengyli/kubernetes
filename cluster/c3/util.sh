@@ -1636,5 +1636,6 @@ function test-teardown {
 }
 
 function test-setup {
-  echo "No setup required"
+  ${KUBE_ROOT}/cluster/kube-up.sh --skip-upload-tars=true
+  echo "test-setup complete"
 }

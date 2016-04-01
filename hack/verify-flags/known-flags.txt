@@ -175,6 +175,8 @@ jenkins-jobs
 k8s-build-output
 k8s-bin-dir
 keep-gogoproto
+keystone-auth-config-file
+keystone-url
 km-path
 kube-api-burst
 kube-api-qps
@@ -280,6 +282,7 @@ output-package
 output-print-type
 output-version
 path-override
+pods-per-node-in-density
 pod-cidr
 pod-eviction-timeout
 pod-infra-container-image
