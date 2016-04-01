@@ -2663,6 +2663,11 @@ func (kl *Kubelet) GetHostname() string {
 	return kl.hostname
 }
 
+// GetNodeName Returns the node name as the kubelet sees it.
+func (kl *Kubelet) GetNodeName() string {
+	return kl.nodeName
+}
+
 // Returns host IP or nil in case of error.
 func (kl *Kubelet) GetHostIP() (net.IP, error) {
 	node, err := kl.GetNode()
