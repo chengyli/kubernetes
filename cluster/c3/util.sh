@@ -272,7 +272,7 @@ EOF
 }
 
 function download-tessnet-binary {
-    local skipDownloadTessnet=false
+    local skipDownloadTessnet=${SKIP_DOWNLOAD_TESSELATE:-false}
     for arg in $@
     do
         if [[ ${arg} == "--skip-download-tessnet=true" ]]
@@ -281,6 +281,7 @@ function download-tessnet-binary {
             break
         fi
     done
+
     if ${skipDownloadTessnet}; then
         echo -e "${color_yellow}+++ Skipped downloading tessnet binary! Previously downloaded tessnet will be used. ${color_norm}"
     else
