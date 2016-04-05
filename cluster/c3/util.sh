@@ -217,7 +217,7 @@ function create-minions-tess-confs {
 
     R_VAR=${OS_REGION_NAME}_EXTERNAL_NET
     EXTERNAL_NET="${!R_VAR}"
-    for (( c=0; c<${NUM_MINIONS}; c++ ))
+    for (( c=0; c<${NUM_NODES}; c++ ))
     do
         create-minion-tess-conf ${MINION_NAMES[${c}]}
     done
@@ -731,7 +731,7 @@ function create-master-routers() {
 
 function update-minions-router-conf {
     echo -e "${color_yellow}+++ Updating router configuration for minions. ${color_norm}"
-    for (( c=0; c<${NUM_MINIONS}; c++ ))
+    for (( c=0; c<${NUM_NODES}; c++ ))
     do
         tessnet-router-create kube-router-${OS_TENANT_ID} ${KUBE_TEMP}/${MINION_NAMES[$c]}-tess.conf
     done
@@ -867,7 +867,7 @@ function accept-minion-key() {
 }
 
 function tessnet-minions-bootstrap {
-    for (( c=0; c<${NUM_MINIONS}; c++ ))
+    for (( c=0; c<${NUM_NODES}; c++ ))
     do
         tessnet-bootstrap ${MINION_NAMES[$c]} true false $DUAL_NIC
         tessnet-generate-apikey ${KUBE_TEMP}/${MINION_NAMES[$c]}-tess.conf
@@ -995,7 +995,7 @@ function tessnet-boot-master {
 }
 
 function tessnet-boot-minions {
-    for (( c=0; c<${NUM_MINIONS}; c++ ))
+    for (( c=0; c<${NUM_NODES}; c++ ))
     do
         tessnet-boot-minion ${MINION_NAMES[${c}]}
     done
@@ -1240,7 +1240,7 @@ function create-dnsrecords {
     curl -X POST --header "Content-Type:application/json" --header "Accept:application/json" -d '{"fqdn":"'${master_fqdn}'", "ip":"'${master_floatingip}'"}' http://cmiaas.vip.ebay.com/dnsproxy/v1/records/aptr
     echo -e "${color_green}+++ Successfully created DNS records for $master_fqdn:$master_floatingip ${color_norm}"
 
-    for (( c=1; c<=${NUM_MINIONS}; c++ ));do
+    for (( c=1; c<=${NUM_NODES}; c++ ));do
         minion_floatingip=$(cat $KUBE_TEMP/kubernetes-minion-$c-tess.conf | python -c 'import json,sys;print json.load(sys.stdin)["compute"]["floating_ip"]')
         minion_fqdn=$(cat $KUBE_TEMP/kubernetes-minion-$c-tess.conf | python -c 'import json,sys;print json.load(sys.stdin)["compute"]["fqdn"]')
         curl -X POST --header "Content-Type:application/json" --header "Accept:application/json" -d '{"fqdn":"'${minion_fqdn}'", "ip":"'${minion_floatingip}'"}' http://cmiaas.vip.ebay.com/dnsproxy/v1/records/aptr
@@ -1286,7 +1286,7 @@ function kube-push {
       esac
     done
   fi
-  export NUM_MINIONS=$found # reset NUM_MINIONS to current cluster's minion num
+  export NUM_NODES=$found # reset NUM_NODES to current cluster's minion num
 
   detect-master
   ensure-temp-dir
