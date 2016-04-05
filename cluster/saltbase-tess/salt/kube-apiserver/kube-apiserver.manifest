@@ -66,7 +66,7 @@
 
 # the ca certificate for etcd requires another parameter
 {% if grains['cloud'] is defined and grains.cloud in [ 'vagrant', 'c3' ]    %}
-  {% set etcd_ca_file = "--etcd-cafile==/etc/ssl/kubernetes/ca.crt" -%}
+  {% set etcd_ca_file = "--etcd-cafile=/etc/ssl/kubernetes/ca.crt" -%}
 {% endif -%}
 
 {% set secure_port = "6443" -%}
