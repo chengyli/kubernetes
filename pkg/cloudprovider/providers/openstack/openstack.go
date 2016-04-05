@@ -342,12 +342,54 @@ func getServerByName(client *gophercloud.ServiceClient, name string) (*servers.S
 		return true, nil
 	})
 	if err != nil {
+		return getServerByFQDN(client, name)
+	}
+
+	if len(serverList) == 0 {
+		return getServerByFQDN(client, name)
+	} else if len(serverList) > 1 {
+		return nil, ErrMultipleResults
+	}
+
+	return &serverList[0], nil
+}
+
+func getServerByFQDN(client *gophercloud.ServiceClient, fqdn string) (*servers.Server, error) {
+	opts := servers.ListOpts{
+		Name:   ".",
+		Status: "ACTIVE",
+	}
+	glog.V(4).Infof("Searching servers by fqdn: %q\n", fqdn)
+	pager := servers.List(client, opts)
+
+	serverList := make([]servers.Server, 0, 1)
+
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		s, err := servers.ExtractServers(page)
+		if err != nil {
+			glog.Errorf("Failed to find server by fqdn: %v", err)
+			return false, err
+		}
+		for _, srv := range s {
+			if srv.Metadata["fqdn"] == fqdn {
+				serverList = append(serverList, srv)
+				glog.V(4).Infof("Found server: %s for fqdn: %s\n", srv.ID, fqdn)
+			}
+		}
+		if len(serverList) == 0 {
+			glog.Warningf("No servers found for fqdn: %s\n", fqdn)
+			return false, ErrNotFound
+		}
+		return true, nil
+	})
+	if err != nil {
 		return nil, err
 	}
 
 	if len(serverList) == 0 {
 		return nil, ErrNotFound
 	} else if len(serverList) > 1 {
+		glog.V(4).Infof("Found servers: %v\n", serverList)
 		return nil, ErrMultipleResults
 	}
 
