@@ -1314,7 +1314,7 @@ function kube-push {
     echo "readonly MASTER_USER='${MASTER_USER}'"
     echo "readonly MASTER_PASSWD='${MASTER_PASSWD}'"
     echo "readonly MASTER_HTPASSWD='${MASTER_HTPASSWD}'"
-    echo "SERVICE_CLUSTER_IP_RANGE='${SERVICE_CLUSTER_IP_RANGE}'"
+    echo "readonly SERVICE_CLUSTER_IP_RANGE='${SERVICE_CLUSTER_IP_RANGE}'"
     echo "readonly ENABLE_CLUSTER_MONITORING='${ENABLE_CLUSTER_MONITORING:-false}'"
     echo "readonly ENABLE_NODE_MONITORING='${ENABLE_NODE_MONITORING:-false}'"
     echo "readonly GRAFANA_MEMORY_LIMIT_MB='${GRAFANA_MEMORY_LIMIT_MB:-}'"

@@ -4,6 +4,7 @@ base:
     - debian-auto-upgrades
     - c3
     - salt
+    - salt-helpers
 
   'roles:kubernetes-pool':
     - match: grain

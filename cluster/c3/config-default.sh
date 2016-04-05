@@ -17,7 +17,6 @@
 ## Contains configuration values for interacting with the Vagrant cluster
 
 # Common settings for both master and minions
-SSH_KEY_NAME="${SSH_KEY_NAME-id_kubernetes}"
 ATOMIC_NODE="${ATOMIC_NODE-false}"
 export ATOMIC_NODE
 
@@ -157,6 +156,7 @@ DOMAIN_SUFFIX="${VPC}.ebayc3.com"
 
 # Specific SSH key to be used for this cluster
 SSH_KEY_NAME=${SSH_KEY_NAME-"id_kubernetes_${OS_TENANT_NAME}"}
+echo "SSH_KEY_NAME=${SSH_KEY_NAME}"}
 
 export CLUSTER_EXTERNAL_DNS_NAME="${CLUSTER_EXTERNAL_DNS_NAME-unspecified}"
 #(todo): generate one dynamically, if not specified
