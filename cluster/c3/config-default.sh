@@ -40,8 +40,8 @@ phx01_SWIFT_ENDPOINT="https://os-r-object.vip.phx.ebayc3.com/v1"
 export TESSNET_BINARY_LOCATION=https://os-r-object.vip.slc.ebayc3.com/v1/KEY_630396909e6f4bf89d89477708c43e23/kubernetes-staging/tessnet
 
 # Number of minions in the cluster
-NUM_MINIONS=${NUM_MINIONS-"1"}
-export NUM_MINIONS
+NUM_NODES=${NUM_NODES-"1"}
+export NUM_NODES
 
 
 # Network settings
@@ -75,7 +75,7 @@ export CONTAINER_SUBNET_PREFIX="192.168."
 #export MINION_IP_BASE="10.245.1."
 MINION_CONTAINER_SUBNET_BASE="172.20"
 CONTAINER_SUBNET="${MINION_CONTAINER_SUBNET_BASE}.0.0/16"
-for ((i=0; i < NUM_MINIONS; i++)) do
+for ((i=0; i < NUM_NODES; i++)) do
   MINION_NAMES[$i]="${INSTANCE_PREFIX}-minion-$((i+1))"
   MINION_CONTAINER_SUBNETS[$i]="${MINION_CONTAINER_SUBNET_BASE}.${i}.0/24"
   MINION_CONTAINER_ADDRS[$i]="${MINION_CONTAINER_SUBNET_BASE}.${i}.254"
