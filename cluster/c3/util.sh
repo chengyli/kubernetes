@@ -84,7 +84,7 @@ function verify-prereqs {
 
   # Mac OS X has swfit programming language, ensure that we are not dealing with it
   version_check=$(${SWIFT} --version)
-  if [[ $version_check != *swift* ]]; then
+  if [[ ! ${version_check} =~ .*python-swiftclient.* ]]; then
     echo -e "${color_red} swift does not seem to be the openstack type, please export SWIFT to point at the right binary. ${color_norm}"
     exit 1
   fi
@@ -125,7 +125,7 @@ function verify-prereqs {
   # Ensure that we have the right cinder client version ?
   cinder_version=$(cinder --version 2>&1 )
   if [[ ${cinder_version} != "1.3.1" ]]; then
-      echo "cinder client version 1.3.1 is needed, found ${cinder_version}, this might not work"
+      echo -e "${color_red}cinder client version 1.3.1 is needed, found ${cinder_version}, this might not work${color_norm}"
   fi
 
 }
@@ -272,7 +272,7 @@ EOF
 }
 
 function download-tessnet-binary {
-    local skipDownloadTessnet=false
+    local skipDownloadTessnet=${SKIP_DOWNLOAD_TESSELATE:-false}
     for arg in $@
     do
         if [[ ${arg} == "--skip-download-tessnet=true" ]]
@@ -281,6 +281,7 @@ function download-tessnet-binary {
             break
         fi
     done
+
     if ${skipDownloadTessnet}; then
         echo -e "${color_yellow}+++ Skipped downloading tessnet binary! Previously downloaded tessnet will be used. ${color_norm}"
     else
@@ -1313,7 +1314,7 @@ function kube-push {
     echo "readonly MASTER_USER='${MASTER_USER}'"
     echo "readonly MASTER_PASSWD='${MASTER_PASSWD}'"
     echo "readonly MASTER_HTPASSWD='${MASTER_HTPASSWD}'"
-    echo "SERVICE_CLUSTER_IP_RANGE='${SERVICE_CLUSTER_IP_RANGE}'"
+    echo "readonly SERVICE_CLUSTER_IP_RANGE='${SERVICE_CLUSTER_IP_RANGE}'"
     echo "readonly ENABLE_CLUSTER_MONITORING='${ENABLE_CLUSTER_MONITORING:-false}'"
     echo "readonly ENABLE_NODE_MONITORING='${ENABLE_NODE_MONITORING:-false}'"
     echo "readonly GRAFANA_MEMORY_LIMIT_MB='${GRAFANA_MEMORY_LIMIT_MB:-}'"
