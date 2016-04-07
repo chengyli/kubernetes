@@ -17,7 +17,6 @@
 ## Contains configuration values for interacting with the Vagrant cluster
 
 # Common settings for both master and minions
-SSH_KEY_NAME="${SSH_KEY_NAME-id_kubernetes}"
 #847 enable namespace.n.tess.io
 #Tess cluster namespace
 CLUSTER_DNS_VIEW="ebay-cloud"
@@ -170,7 +169,6 @@ SALT_PRI_SIGN="master_sign.pem"
 SALT_PUB_SIGN="master_sign.pub"
 export OS_TENANT_NAME=${OS_TENANT_NAME}
 
-SSH_KEY_NAME=`echo "id_kubernetes.${OS_TENANT_NAME}.${CLUSTER_DOMAIN}" | tr '.' '-' `
 DOMAIN_SUFFIX="${VPC}.ebayc3.com"
 CLUSTER_DOMAIN_SUFFIX="${CLUSTER_DOMAIN}.${CLUSTER_DNS_ZONE}"
 # Specific SSH key to be used for this cluster
