@@ -3,6 +3,7 @@ Description=Kubernetes Addon Object Manager
 Documentation=https://github.com/GoogleCloudPlatform/kubernetes
 
 [Service]
+Environment=HOME=/root
 Environment=CA_CERT={{ CA_CERT }}
 Environment=KUBERNETES_MASTER_NAME={{ KUBERNETES_MASTER_NAME }}
 ExecStart=/etc/kubernetes/kube-addons.sh
