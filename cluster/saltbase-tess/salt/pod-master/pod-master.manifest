@@ -1,45 +1,56 @@
-apiVersion: v1
-kind: Pod
-metadata:
-  name: pod-master
-spec:
-  hostNetwork: true
-  containers:
-  - name: scheduler-elector
-    image: ecr.vip.ebayc3.com/kubernetes/podmaster:1.1
-    command:
-    - /podmaster
-    - --etcd-servers=https://127.0.0.1:4001
-    - --key=scheduler
-    - --source-file=/kubernetes/kube-scheduler.manifest
-    - --dest-file=/manifests/kube-scheduler.manifest
-    - --ttl-secs=60
-    volumeMounts:
-    - mountPath: /kubernetes
-      name: k8s
-      readOnly: true
-    - mountPath: /manifests
-      name: manifests
-  - name: controller-manager-elector
-    image: ecr.vip.ebayc3.com/kubernetes/podmaster:1.1
-    command:
-    - /podmaster
-    - --etcd-servers=https://127.0.0.1:4001
-    - --key=controller
-    - --source-file=/kubernetes/kube-controller-manager.manifest
-    - --dest-file=/manifests/kube-controller-manager.manifest
-    - --ttl-secs=60
-    terminationMessagePath: /dev/termination-log
-    volumeMounts:
-    - mountPath: /kubernetes
-      name: k8s
-      readOnly: true
-    - mountPath: /manifests
-      name: manifests
-  volumes:
-  - hostPath:
-      path: /etc/kubernetes/pod-master-sources
-    name: k8s
-  - hostPath:
-      path: /etc/kubernetes/manifests
-    name: manifests
+{% set etcd_servers = "--etcd_servers=https://" + grains['host'] + "." + pillar['cluster_domain_suffix'] + ":4001" -%}
+
+{
+"apiVersion": "v1",
+"kind": "Pod",
+"metadata": {
+    "name":"pod-master"
+},
+"spec":{
+"hostNetwork": true,
+"containers":[
+    {
+    "name": "scheduler-elector",
+    "image": "ecr.vip.ebayc3.com/kubernetes/podmaster:1.1",
+    "command": [
+                 "/podmaster",
+                 "--etcd-servers={{ etcd_servers }} --key=scheduler --source-file=/kubernetes/kube-scheduler.manifest --dest-file=/manifests/kube-scheduler.manifest --ttl-secs=60"
+               ],
+    "volumeMounts": [
+        { "name": "k8s",
+        "mountPath": "/kubernetes",
+        "readOnly": true},
+        { "name": "manifests",
+        "mountPath": "/manifests"
+        }
+      ]
+    },
+    {
+    "name": "controller-manager-elector",
+    "image": "ecr.vip.ebayc3.com/kubernetes/podmaster:1.1",
+    "command": [
+                 "/podmaster",
+                 "--etcd-servers={{ etcd_servers }} --key=controller --source-file=/kubernetes/kube-controller-manager.manifest --dest-file=/manifests/kube-controller-manager.manifest --ttl-secs=60"
+               ],
+    "volumeMounts": [
+        { "name": "k8s",
+        "mountPath": "/kubernetes",
+        "readOnly": true},
+        { "name": "manifests",
+        "mountPath": "/manifests"
+        }
+      ]
+    "terminationMessagePath": "/dev/termination-log"
+    }
+],
+"volumes":[
+  { "name": "k8s",
+    "hostPath": {
+        "path": "/etc/kubernetes/pod-master-sources"}
+  },
+  { "name": "manifests",
+    "hostPath": {
+        "path": "/etc/kubernetes/manifests"}
+  }
+]
+}}

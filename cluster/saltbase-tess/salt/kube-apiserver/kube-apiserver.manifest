@@ -49,7 +49,7 @@
   {% set bind_address = "--bind-address=" + grains.publicAddressOverride -%}
 {% endif -%}
 
-{% set etcd_servers = "--etcd_servers=https://127.0.0.1:4001" -%}
+{% set etcd_servers = "--etcd_servers=https://" + grains['host'] + "." + pillar['cluster_domain_suffix'] + ":4001" -%}
 
 {% set service_cluster_ip_range = "" -%}
 {% if pillar['service_cluster_ip_range'] is defined -%}

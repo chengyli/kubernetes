@@ -67,6 +67,8 @@ install-openvswitch
 install-bridgeutils
 install-docker
 
+set-salt-autoaccept
+
 # This kube-master may or may not be salt-master; handle accordingly
 if [ "$SALT_MASTER" = "$MASTER_NAME" ];
 then
@@ -82,3 +84,6 @@ fi
 echo "Sleeping 180"
 sleep 180
 salt-call state.highstate || true
+if [ -f /etc/salt/pki/master/master_sign.pub -a -f /etc/salt/pki/master/master.pub ]; then
+   cp-credentials
+fi
