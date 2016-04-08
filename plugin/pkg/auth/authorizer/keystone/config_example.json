@@ -1,0 +1,9 @@
+{
+  "auth-url": "https://os-identity.vip.ebayc3.com:443/v2.0",
+  "user-name": "tess_admin",
+  "password": "ThisIsAPassword",
+  "region": "slc01",
+  "tenant-id": "31213d3bc3144cfaacb80f040206baae",
+  "tenant-name": "tess",
+  "domain-name": "default"
+}
