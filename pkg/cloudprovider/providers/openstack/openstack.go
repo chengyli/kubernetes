@@ -17,55 +17,66 @@ limitations under the License.
 package openstack
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/openstack"
 	"github.com/rackspace/gophercloud/openstack/blockstorage/v1/volumes"
 	"github.com/rackspace/gophercloud/openstack/compute/v2/extensions/volumeattach"
 	"github.com/rackspace/gophercloud/openstack/compute/v2/flavors"
 	"github.com/rackspace/gophercloud/openstack/compute/v2/servers"
-	"github.com/rackspace/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 	"github.com/rackspace/gophercloud/openstack/networking/v2/extensions/lbaas/members"
 	"github.com/rackspace/gophercloud/openstack/networking/v2/extensions/lbaas/monitors"
 	"github.com/rackspace/gophercloud/openstack/networking/v2/extensions/lbaas/pools"
 	"github.com/rackspace/gophercloud/openstack/networking/v2/extensions/lbaas/vips"
 	"github.com/rackspace/gophercloud/pagination"
 	"github.com/scalingdata/gcfg"
+	"k8s.io/kubernetes/Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/networking/v2/extensions/layer3/floatingips"
 
-	"github.com/golang/glog"
+	"strconv"
+
+	"k8s.io/kubernetes/Godeps/_workspace/src/github.com/rackspace/gophercloud/openstack/networking/v2/ports"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/resource"
-	"k8s.io/kubernetes/pkg/api/service"
+	"k8s.io/kubernetes/pkg/client/restclient"
+	client "k8s.io/kubernetes/pkg/client/unversioned"
+	"k8s.io/kubernetes/pkg/client/unversioned/auth"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/fields"
+	"k8s.io/kubernetes/pkg/labels"
 	"k8s.io/kubernetes/pkg/types"
+	"k8s.io/kubernetes/pkg/util/intstr"
 )
 
 const ProviderName = "openstack"
-
-// metadataUrl is URL to OpenStack metadata server. It's hadrcoded IPv4
-// link-local address as documented in "OpenStack Cloud Administrator Guide",
-// chapter Compute - Networking with nova-network.
-// http://docs.openstack.org/admin-guide-cloud/compute-networking-nova.html#metadata-service
-const metadataUrl = "http://169.254.169.254/openstack/2012-08-10/meta_data.json"
 
 var ErrNotFound = errors.New("Failed to find object")
 var ErrMultipleResults = errors.New("Multiple results where only one expected")
 var ErrNoAddressFound = errors.New("No address found for host")
 var ErrAttrNotFound = errors.New("Expected attribute not found")
+var ErrServiceNotFound = errors.New("Service not found matching lbname")
+var ErrLBTimedOut = errors.New("Timed out creating Load Balancer artifact")
+var ErrLBPendigCreateStatus = errors.New("Load Balancer artifact in PENDING_CREATE status")
+var ErrLBErrorStatus = errors.New("Load Balancer artifact in Error status")
 
+const waitInterval = 5
 const (
 	MiB = 1024 * 1024
 	GB  = 1000 * 1000 * 1000
+)
+
+const (
+	LoadBalancerPendingStatus = "PENDING_CREATE"
+	LoadBalancerActiveStatus  = "ACTIVE"
+	LoadBalancerErrorStatus   = "ERROR"
 )
 
 // encoding.TextUnmarshaler interface for time.Duration
@@ -84,12 +95,13 @@ func (d *MyDuration) UnmarshalText(text []byte) error {
 
 type LoadBalancerOpts struct {
 	SubnetId          string     `gcfg:"subnet-id"` // required
-	FloatingNetworkId string     `gcfg:"floating-network-id"`
 	LBMethod          string     `gfcg:"lb-method"`
 	CreateMonitor     bool       `gcfg:"create-monitor"`
 	MonitorDelay      MyDuration `gcfg:"monitor-delay"`
 	MonitorTimeout    MyDuration `gcfg:"monitor-timeout"`
 	MonitorMaxRetries uint       `gcfg:"monitor-max-retries"`
+	FloatingIPNetId   string     `gcfg:"floating-network-id"`
+	LeastUsedSubnetId string     `gcfg:"floatingip-subnet-net-id"`
 }
 
 // OpenStack is an implementation of cloud provider Interface for OpenStack.
@@ -97,8 +109,7 @@ type OpenStack struct {
 	provider *gophercloud.ProviderClient
 	region   string
 	lbOpts   LoadBalancerOpts
-	// InstanceID of the server where this OpenStack object is instantiated.
-	localInstanceID string
+	authOpts gophercloud.AuthOptions
 }
 
 type Config struct {
@@ -136,8 +147,6 @@ func (cfg Config) toAuthOptions() gophercloud.AuthOptions {
 		APIKey:           cfg.Global.ApiKey,
 		TenantID:         cfg.Global.TenantId,
 		TenantName:       cfg.Global.TenantName,
-		DomainID:         cfg.Global.DomainId,
-		DomainName:       cfg.Global.DomainName,
 
 		// Persistent service, so we need to be able to renew tokens.
 		AllowReauth: true,
@@ -155,89 +164,19 @@ func readConfig(config io.Reader) (Config, error) {
 	return cfg, err
 }
 
-// parseMetadataUUID reads JSON from OpenStack metadata server and parses
-// instance ID out of it.
-func parseMetadataUUID(jsonData []byte) (string, error) {
-	// We should receive an object with { 'uuid': '<uuid>' } and couple of other
-	// properties (which we ignore).
-
-	obj := struct{ UUID string }{}
-	err := json.Unmarshal(jsonData, &obj)
-	if err != nil {
-		return "", err
-	}
-
-	uuid := obj.UUID
-	if uuid == "" {
-		err = fmt.Errorf("cannot parse OpenStack metadata, got empty uuid")
-		return "", err
-	}
-
-	return uuid, nil
-}
-
-func readInstanceID() (string, error) {
-	// Try to find instance ID on the local filesystem (created by cloud-init)
-	const instanceIDFile = "/var/lib/cloud/data/instance-id"
-	idBytes, err := ioutil.ReadFile(instanceIDFile)
-	if err == nil {
-		instanceID := string(idBytes)
-		instanceID = strings.TrimSpace(instanceID)
-		glog.V(3).Infof("Got instance id from %s: %s", instanceIDFile, instanceID)
-		if instanceID != "" {
-			return instanceID, nil
-		}
-		// Fall through with empty instanceID and try metadata server.
-	}
-	glog.V(5).Infof("Cannot read %s: '%v', trying metadata server", instanceIDFile, err)
-
-	// Try to get JSON from metdata server.
-	resp, err := http.Get(metadataUrl)
-	if err != nil {
-		glog.V(3).Infof("Cannot read %s: %v", metadataUrl, err)
-		return "", err
-	}
-
-	if resp.StatusCode != 200 {
-		err = fmt.Errorf("got unexpected status code when reading metadata from %s: %s", metadataUrl, resp.Status)
-		glog.V(3).Infof("%v", err)
-		return "", err
-	}
-
-	defer resp.Body.Close()
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		glog.V(3).Infof("Cannot get HTTP response body from %s: %v", metadataUrl, err)
-		return "", err
-	}
-	instanceID, err := parseMetadataUUID(bodyBytes)
-	if err != nil {
-		glog.V(3).Infof("Cannot parse instance ID from metadata from %s: %v", metadataUrl, err)
-		return "", err
-	}
-
-	glog.V(3).Infof("Got instance id from %s: %s", metadataUrl, instanceID)
-	return instanceID, nil
-}
-
 func newOpenStack(cfg Config) (*OpenStack, error) {
 	provider, err := openstack.AuthenticatedClient(cfg.toAuthOptions())
 	if err != nil {
-		return nil, err
-	}
-
-	id, err := readInstanceID()
-	if err != nil {
+		glog.Errorf("%v", err)
 		return nil, err
 	}
 
 	os := OpenStack{
-		provider:        provider,
-		region:          cfg.Global.Region,
-		lbOpts:          cfg.LoadBalancer,
-		localInstanceID: id,
+		provider: provider,
+		region:   cfg.Global.Region,
+		lbOpts:   cfg.LoadBalancer,
+		authOpts: cfg.toAuthOptions(),
 	}
-
 	return &os, nil
 }
 
@@ -285,8 +224,8 @@ func (os *OpenStack) Instances() (cloudprovider.Instances, bool) {
 		return nil, false
 	}
 
-	glog.V(3).Infof("Found %v compute flavors", len(flavor_to_resource))
-	glog.V(1).Info("Claiming to support Instances")
+	glog.V(4).Infof("Found %v compute flavors", len(flavor_to_resource))
+	glog.V(4).Info("Claiming to support Instances")
 
 	return &Instances{compute, flavor_to_resource}, true
 }
@@ -307,15 +246,18 @@ func (i *Instances) List(name_filter string) ([]string, error) {
 			return false, err
 		}
 		for _, server := range sList {
-			ret = append(ret, server.Name)
+			if server.Metadata["fqdn"] != nil {
+				ret = append(ret, server.Metadata["fqdn"].(string))
+			}
 		}
 		return true, nil
 	})
 	if err != nil {
+		glog.Errorf("List Instances failed: %v", err)
 		return nil, err
 	}
 
-	glog.V(3).Infof("Found %v instances matching %v: %v",
+	glog.V(4).Infof("Found %v instances matching %v: %v",
 		len(ret), name_filter, ret)
 
 	return ret, nil
@@ -396,90 +338,146 @@ func getServerByFQDN(client *gophercloud.ServiceClient, fqdn string) (*servers.S
 	return &serverList[0], nil
 }
 
-func getAddressesByName(client *gophercloud.ServiceClient, name string) ([]api.NodeAddress, error) {
-	srv, err := getServerByName(client, name)
-	if err != nil {
-		return nil, err
+func findAddrs(netblob interface{}) []string {
+	// Run-time types for the win :(
+	ret := []string{}
+	list, ok := netblob.([]interface{})
+	if !ok {
+		return ret
 	}
-
-	addrs := []api.NodeAddress{}
-
-	for network, netblob := range srv.Addresses {
-		list, ok := netblob.([]interface{})
+	for _, item := range list {
+		props, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
-
-		for _, item := range list {
-			var addressType api.NodeAddressType
-
-			props, ok := item.(map[string]interface{})
-			if !ok {
-				continue
-			}
-
-			extIPType, ok := props["OS-EXT-IPS:type"]
-			if (ok && extIPType == "floating") || (!ok && network == "public") {
-				addressType = api.NodeExternalIP
-			} else {
-				addressType = api.NodeInternalIP
-			}
-
-			tmp, ok := props["addr"]
-			if !ok {
-				continue
-			}
-			addr, ok := tmp.(string)
-			if !ok {
-				continue
-			}
-
-			api.AddToNodeAddresses(&addrs,
-				api.NodeAddress{
-					Type:    addressType,
-					Address: addr,
-				},
-			)
+		tmp, ok := props["addr"]
+		if !ok {
+			continue
 		}
+		addr, ok := tmp.(string)
+		if !ok {
+			continue
+		}
+		ret = append(ret, addr)
 	}
-
-	// AccessIPs are usually duplicates of "public" addresses.
-	if srv.AccessIPv4 != "" {
-		api.AddToNodeAddresses(&addrs,
-			api.NodeAddress{
-				Type:    api.NodeExternalIP,
-				Address: srv.AccessIPv4,
-			},
-		)
-	}
-
-	if srv.AccessIPv6 != "" {
-		api.AddToNodeAddresses(&addrs,
-			api.NodeAddress{
-				Type:    api.NodeExternalIP,
-				Address: srv.AccessIPv6,
-			},
-		)
-	}
-
-	return addrs, nil
+	return ret
 }
 
-func getAddressByName(client *gophercloud.ServiceClient, name string) (string, error) {
-	addrs, err := getAddressesByName(client, name)
+func getAddressByName(api *gophercloud.ServiceClient, name string) (string, error) {
+	srv, err := getServerByName(api, name)
 	if err != nil {
 		return "", err
-	} else if len(addrs) == 0 {
-		return "", ErrNoAddressFound
 	}
 
-	for _, addr := range addrs {
-		if addr.Type == api.NodeInternalIP {
-			return addr.Address, nil
+	var s string
+	if s == "" {
+		if tmp := findAddrs(srv.Addresses["private"]); len(tmp) >= 1 {
+			s = tmp[0]
 		}
 	}
+	if s == "" {
+		if tmp := findAddrs(srv.Addresses["public"]); len(tmp) >= 1 {
+			s = tmp[0]
+		}
+	}
+	if s == "" {
+		s = srv.AccessIPv4
+	}
+	if s == "" {
+		s = srv.AccessIPv6
+	}
+	if s == "" {
+		return "", ErrNoAddressFound
+	}
+	return s, nil
+}
 
-	return addrs[0].Address, nil
+// This function waits till the lb pool/member/vip  reaches desiredState or times out
+func timedWait(c *gophercloud.ServiceClient, id string, lbObjectType string, desiredStatus string) error {
+	const LBTimeout = 300
+	var totalTime = 0
+	var statusString string
+	for {
+
+		switch lbObjectType {
+
+		case "pool":
+			pool, err := pools.Get(c, id).Extract()
+			if err != nil {
+				continue
+			}
+			statusString = pool.Status
+
+		case "member":
+			member, err := members.Get(c, id).Extract()
+			if err != nil {
+				continue
+			}
+			statusString = member.Status
+		case "vip":
+			vip, err := vips.Get(c, id).Extract()
+			if err != nil {
+				continue
+			}
+			statusString = vip.Status
+		}
+		if statusString == desiredStatus {
+			glog.V(4).Infof("timedWait: %s %s with id:%s\n", lbObjectType, desiredStatus, id)
+			return nil
+		} else if statusString == LoadBalancerErrorStatus {
+			glog.V(4).Infof("%s:%s is in ERROR state\n", lbObjectType, id)
+			return ErrLBErrorStatus
+		}
+		if totalTime >= LBTimeout {
+			glog.V(4).Infof("timedWait: timed out waiting for %s:%s to become %s\n", lbObjectType, id, desiredStatus)
+			return ErrLBTimedOut
+		}
+		glog.V(4).Infof("timedWait: Waiting for %s:%s to become %s\n", lbObjectType, id, desiredStatus)
+		time.Sleep(time.Second * waitInterval)
+		totalTime += waitInterval
+	}
+}
+
+/*
+This function will wait for all the artifacts to become active or timeout
+*/
+func timedWaitForAll(c *gophercloud.ServiceClient, id string, desiredStatus string) error {
+
+	maxRetries := 18
+	count := 0
+	retry := false
+	for {
+		if count >= maxRetries {
+			return ErrLBTimedOut
+		}
+		memList, err := listMembers(c, members.ListOpts{PoolID: id})
+		if err != nil {
+			// Error retrieving Members!
+			return err
+		}
+		maxRetries = len(memList)
+		// Check for Active members
+		for _, member := range memList {
+			glog.V(4).Infof("timedWaitForAll: Check member:%s, poolid:%s, State:%s", member.ID, id, member.Status)
+			if member.Status != LoadBalancerActiveStatus {
+				// Member Not Active Yet! Check for errors, else retry
+				if member.Status == LoadBalancerErrorStatus {
+					return ErrLBErrorStatus
+				}
+				retry = true
+			}
+		}
+		if !retry {
+			break
+		}
+		glog.V(4).Infof("timedWaitForAll: Waiting for all the members of poolid:%s", id)
+		time.Sleep(time.Second * waitInterval)
+		count++
+		retry = false
+	}
+	// All the members are active!
+	glog.V(4).Infof("timedWaitForAll: All the memner of pool:%s are in %s status", id, desiredStatus)
+	return nil
 }
 
 // Implementation of Instances.CurrentNodeName
@@ -494,10 +492,42 @@ func (i *Instances) AddSSHKeyToAllInstances(user string, keyData []byte) error {
 func (i *Instances) NodeAddresses(name string) ([]api.NodeAddress, error) {
 	glog.V(4).Infof("NodeAddresses(%v) called", name)
 
-	addrs, err := getAddressesByName(i.compute, name)
+	srv, err := getServerByName(i.compute, name)
 	if err != nil {
 		return nil, err
 	}
+
+	addrs := []api.NodeAddress{}
+	var privateNetworkPattern = regexp.MustCompile(`^kubernetes.*tess-network$`)
+	for networkName, networkInfo := range srv.Addresses {
+		if privateNetworkPattern.MatchString(networkName) {
+			for _, addr := range findAddrs(networkInfo) {
+				addrs = append(addrs, api.NodeAddress{
+					Type:    api.NodeInternalIP,
+					Address: addr,
+				})
+			}
+		} else {
+			for _, addr := range findAddrs(networkInfo) {
+				addrs = append(addrs, api.NodeAddress{
+					Type:    api.NodeExternalIP,
+					Address: addr,
+				})
+			}
+		}
+	}
+
+	// AccessIPs are usually duplicates of "public" addresses.
+	api.AddToNodeAddresses(&addrs,
+		api.NodeAddress{
+			Type:    api.NodeExternalIP,
+			Address: srv.AccessIPv6,
+		},
+		api.NodeAddress{
+			Type:    api.NodeExternalIP,
+			Address: srv.AccessIPv4,
+		},
+	)
 
 	glog.V(4).Infof("NodeAddresses(%v) => %v", name, addrs)
 	return addrs, nil
@@ -523,9 +553,33 @@ func (i *Instances) InstanceID(name string) (string, error) {
 	return "/" + srv.ID, nil
 }
 
-// InstanceType returns the type of the specified instance.
-func (i *Instances) InstanceType(name string) (string, error) {
-	return "", nil
+func (i *Instances) GetNodeResources(name string) (*api.NodeResources, error) {
+	glog.V(4).Infof("GetNodeResources(%v) called", name)
+
+	srv, err := getServerByName(i.compute, name)
+	if err != nil {
+		//        srv, err = getServerByFQDN(i.compute, name)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	s, ok := srv.Flavor["id"]
+	if !ok {
+		return nil, ErrAttrNotFound
+	}
+	flavId, ok := s.(string)
+	if !ok {
+		return nil, ErrAttrNotFound
+	}
+	rsrc, ok := i.flavor_to_resource[flavId]
+	if !ok {
+		return nil, ErrNotFound
+	}
+
+	glog.V(4).Infof("GetNodeResources(%v) => %v", name, rsrc)
+
+	return rsrc, nil
 }
 
 func (os *OpenStack) Clusters() (cloudprovider.Clusters, bool) {
@@ -543,13 +597,14 @@ func (os *OpenStack) ScrubDNS(nameservers, searches []string) (nsOut, srchOut []
 }
 
 type LoadBalancer struct {
-	network *gophercloud.ServiceClient
-	compute *gophercloud.ServiceClient
-	opts    LoadBalancerOpts
+	network    *gophercloud.ServiceClient
+	compute    *gophercloud.ServiceClient
+	opts       LoadBalancerOpts
+	osAuthOpts gophercloud.AuthOptions
 }
 
 func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	glog.V(4).Info("openstack.LoadBalancer() called")
+	glog.V(4).Info("openstack.TCPLoadBalancer() called")
 
 	// TODO: Search for and support Rackspace loadbalancer API, and others.
 	network, err := openstack.NewNetworkV2(os.provider, gophercloud.EndpointOpts{
@@ -570,7 +625,7 @@ func (os *OpenStack) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 
 	glog.V(1).Info("Claiming to support LoadBalancer")
 
-	return &LoadBalancer{network, compute, os.lbOpts}, true
+	return &LoadBalancer{network, compute, os.lbOpts, os.authOpts}, true
 }
 
 func isNotFound(err error) bool {
@@ -578,20 +633,21 @@ func isNotFound(err error) bool {
 	return ok && e.Actual == http.StatusNotFound
 }
 
-func getPoolByName(client *gophercloud.ServiceClient, name string) (*pools.Pool, error) {
+func getPoolByName(client *gophercloud.ServiceClient, name string, tenantid string) ([]pools.Pool, error) {
 	opts := pools.ListOpts{
-		Name: name,
+		TenantID: tenantid,
 	}
 	pager := pools.List(client, opts)
 
-	poolList := make([]pools.Pool, 0, 1)
+	var fullPoolList []pools.Pool
+	var poolList []pools.Pool
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		p, err := pools.ExtractPools(page)
 		if err != nil {
 			return false, err
 		}
-		poolList = append(poolList, p...)
+		fullPoolList = append(fullPoolList, p...)
 		if len(poolList) > 1 {
 			return false, ErrMultipleResults
 		}
@@ -601,32 +657,40 @@ func getPoolByName(client *gophercloud.ServiceClient, name string) (*pools.Pool,
 		if isNotFound(err) {
 			return nil, ErrNotFound
 		}
+		glog.Errorf("Failed to get pool by name: %v", err)
 		return nil, err
 	}
 
-	if len(poolList) == 0 {
+	if len(fullPoolList) == 0 {
 		return nil, ErrNotFound
-	} else if len(poolList) > 1 {
-		return nil, ErrMultipleResults
 	}
 
-	return &poolList[0], nil
+	for _, pool := range fullPoolList {
+		if strings.Contains(pool.Name, name) {
+			poolList = append(poolList, pool)
+		}
+	}
+
+	return poolList, nil
 }
 
-func getVipByName(client *gophercloud.ServiceClient, name string) (*vips.VirtualIP, error) {
+//Returns a list of vips that match the name regex;
+//multiple vips are created with the same ip when more than one port exists
+func getVipByName(client *gophercloud.ServiceClient, name string, tenantid string) ([]vips.VirtualIP, error) {
 	opts := vips.ListOpts{
-		Name: name,
+		TenantID: tenantid,
 	}
 	pager := vips.List(client, opts)
 
-	vipList := make([]vips.VirtualIP, 0, 1)
+	var fullVipList []vips.VirtualIP
+	var vipList []vips.VirtualIP
 
 	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		v, err := vips.ExtractVIPs(page)
 		if err != nil {
 			return false, err
 		}
-		vipList = append(vipList, v...)
+		fullVipList = append(fullVipList, v...)
 		if len(vipList) > 1 {
 			return false, ErrMultipleResults
 		}
@@ -639,61 +703,33 @@ func getVipByName(client *gophercloud.ServiceClient, name string) (*vips.Virtual
 		return nil, err
 	}
 
+	for _, vip := range fullVipList {
+		if strings.Contains(vip.Name, name) {
+			vipList = append(vipList, vip)
+		}
+	}
+
 	if len(vipList) == 0 {
+		glog.V(4).Infof("No vips found with name: %s", name)
 		return nil, ErrNotFound
-	} else if len(vipList) > 1 {
-		return nil, ErrMultipleResults
 	}
 
-	return &vipList[0], nil
-}
-
-func getFloatingIPByPortID(client *gophercloud.ServiceClient, portID string) (*floatingips.FloatingIP, error) {
-	opts := floatingips.ListOpts{
-		PortID: portID,
-	}
-	pager := floatingips.List(client, opts)
-
-	floatingIPList := make([]floatingips.FloatingIP, 0, 1)
-
-	err := pager.EachPage(func(page pagination.Page) (bool, error) {
-		f, err := floatingips.ExtractFloatingIPs(page)
-		if err != nil {
-			return false, err
-		}
-		floatingIPList = append(floatingIPList, f...)
-		if len(floatingIPList) > 1 {
-			return false, ErrMultipleResults
-		}
-		return true, nil
-	})
-	if err != nil {
-		if isNotFound(err) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-
-	if len(floatingIPList) == 0 {
-		return nil, ErrNotFound
-	} else if len(floatingIPList) > 1 {
-		return nil, ErrMultipleResults
-	}
-
-	return &floatingIPList[0], nil
+	return vipList, nil
 }
 
 func (lb *LoadBalancer) GetLoadBalancer(name, region string) (*api.LoadBalancerStatus, bool, error) {
-	vip, err := getVipByName(lb.network, name)
+	vips, err := getVipByName(lb.network, name, lb.osAuthOpts.TenantID)
 	if err == ErrNotFound {
 		return nil, false, nil
 	}
-	if vip == nil {
+	if len(vips) == 0 {
+		glog.V(4).Infof("No vip found for service: %s", name)
 		return nil, false, err
 	}
 
 	status := &api.LoadBalancerStatus{}
-	status.Ingress = []api.LoadBalancerIngress{{IP: vip.Address}}
+	// Address is same for all the vips returned
+	status.Ingress = []api.LoadBalancerIngress{{IP: vips[0].Address}}
 
 	return status, true, err
 }
@@ -702,88 +738,122 @@ func (lb *LoadBalancer) GetLoadBalancer(name, region string) (*api.LoadBalancerS
 // loadbalancer in only the current OpenStack region.  We should take
 // a list of regions (from config) and query/create loadbalancers in
 // each region.
-
-func (lb *LoadBalancer) EnsureLoadBalancer(name, region string, loadBalancerIP net.IP, ports []*api.ServicePort, hosts []string, serviceName types.NamespacedName, affinity api.ServiceAffinity, annotations map[string]string) (*api.LoadBalancerStatus, error) {
-	glog.V(4).Infof("EnsureLoadBalancer(%v, %v, %v, %v, %v, %v, %v)", name, region, loadBalancerIP, ports, hosts, serviceName, annotations)
-
-	if len(ports) > 1 {
-		return nil, fmt.Errorf("multiple ports are not yet supported in openstack load balancers")
-	} else if len(ports) == 0 {
-		return nil, fmt.Errorf("no ports provided to openstack load balancer")
-	}
-
-	// The service controller verified all the protocols match on the ports, just check and use the first one
-	// TODO: Convert all error messages to use an event recorder
-	if ports[0].Protocol != api.ProtocolTCP {
-		return nil, fmt.Errorf("Only TCP LoadBalancer is supported for openstack load balancers")
-	}
-
+func (lb *LoadBalancer) EnsureLoadBalancer(name, region string, loadBalancerIP net.IP, ports []*api.ServicePort, hosts []string, serviceName types.NamespacedName, affinityType api.ServiceAffinity, annotations map[string]string) (*api.LoadBalancerStatus, error) {
+	glog.V(4).Infof("EnsureTCPLoadBalancer(%v, %v, %v, %v, %v, %v)", name, region, loadBalancerIP, ports, hosts, affinityType)
 	var persistence *vips.SessionPersistence
-	switch affinity {
+	switch affinityType {
 	case api.ServiceAffinityNone:
 		persistence = nil
 	case api.ServiceAffinityClientIP:
 		persistence = &vips.SessionPersistence{Type: "SOURCE_IP"}
 	default:
-		return nil, fmt.Errorf("unsupported load balancer affinity: %v", affinity)
+		return nil, fmt.Errorf("unsupported load balancer affinityType: %v", affinityType)
 	}
 
-	sourceRanges, err := service.GetLoadBalancerSourceRanges(annotations)
+	//	glog.V(2).Info("Checking if openstack load balancer already exists: %s", name)
+	//	_, exists, err := lb.GetTCPLoadBalancer(name, region)
+	//	if err != nil {
+	//		return nil, fmt.Errorf("error checking if openstack load balancer already exists: %v", err)
+	//	}
+	//
+	//	// TODO: Implement a more efficient update strategy for common changes than delete & create
+	//	// In particular, if we implement hosts update, we can get rid of UpdateHosts
+	//	if exists {
+	//		err := lb.EnsureTCPLoadBalancerDeleted(name, region)
+	//		if err != nil {
+	//			return nil, fmt.Errorf("error deleting existing openstack load balancer: %v", err)
+	//		}
+	//	}
+
+	podsList, service, err := getServicePodListbyLBName(name)
 	if err != nil {
 		return nil, err
 	}
-
-	if !service.IsAllowAll(sourceRanges) {
-		return nil, fmt.Errorf("Source range restrictions are not supported for openstack load balancers")
-	}
-
-	glog.V(2).Infof("Checking if openstack load balancer already exists: %s", name)
-	_, exists, err := lb.GetLoadBalancer(name, region)
-	if err != nil {
-		return nil, fmt.Errorf("error checking if openstack load balancer already exists: %v", err)
-	}
-
-	// TODO: Implement a more efficient update strategy for common changes than delete & create
-	// In particular, if we implement hosts update, we can get rid of UpdateHosts
-	if exists {
-		err := lb.EnsureLoadBalancerDeleted(name, region)
+	var poolMembers []string
+	fipPodMap := make(map[string]*api.Pod)
+	// This is to hold floatingip to pod uid mapping
+	for _, pod := range podsList {
+		fip, err := lb.createFloatingIPsforPods(pod.Spec.NodeName, pod.Status.PodIP)
 		if err != nil {
-			return nil, fmt.Errorf("error deleting existing openstack load balancer: %v", err)
+			return nil, err
+		}
+		poolMembers = append(poolMembers, fip)
+		fipPodMap[fip] = &pod
+	}
+	// messageChan retrieves success/error from go routines
+	messageChan := make(chan map[string]string, len(ports))
+	// vipAddressChan is used to communicate the vip address between go routines
+	vipAddressChan := make(chan string, 1)
+	vipAddress := ""
+
+	for i := 0; i < len(ports); i++ {
+		vipsList, err := getVipByName(lb.network, fmt.Sprintf("%s-%d", name, ports[i].Port), lb.osAuthOpts.TenantID)
+		if err != nil && err != ErrNotFound {
+			glog.V(4).Infof("EnsureTCPLoadBalancer: failed to retrive vip for port %d with error:%s", ports[i].Port, err.Error())
+			return nil, err
+		}
+		if len(vipsList) > 0 {
+			vipAddress = vipsList[0].Address
 		}
 	}
+	vipAddressChan <- vipAddress // Initialize the vipAddressChannel
 
-	lbmethod := lb.opts.LBMethod
-	if lbmethod == "" {
-		lbmethod = pools.LBMethodRoundRobin
+	for i := 0; i < len(ports); i++ {
+		glog.V(4).Infof("CreateTCPLoadBalancer: Start createPort routine for port: %d", ports[i].Port)
+		go lb.createPort(name, poolMembers, fipPodMap, ports[i], service.Name, loadBalancerIP, persistence, messageChan, vipAddressChan)
 	}
-	pool, err := pools.Create(lb.network, pools.CreateOpts{
-		Name:     name,
-		Protocol: pools.ProtocolTCP,
-		SubnetID: lb.opts.SubnetId,
-		LBMethod: lbmethod,
-	}).Extract()
-	if err != nil {
+	failed := false
+	// Wait for all the go routines to return either Success or Error message
+	for i := 0; i < len(ports); i++ {
+		returnedMap := <-messageChan
+		glog.V(4).Infof("CreateTCPLoadBalancer: createPort routine returned %v", returnedMap)
+		if returnedMap["Error"] != "" {
+			err = errors.New(returnedMap["Error"])
+			failed = true
+		}
+		vipAddress = returnedMap["Success"]
+	}
+	if failed {
+		glog.V(2).Infof("CreateTCPLoadBalancer: All the ports not successful yet. Will retry")
 		return nil, err
 	}
+	// If we are here all the ports create succeeded
+	status := &api.LoadBalancerStatus{}
+	status.Ingress = []api.LoadBalancerIngress{{IP: vipAddress}}
+	return status, nil
+}
 
-	for _, host := range hosts {
-		addr, err := getAddressByName(lb.compute, host)
-		if err != nil {
-			return nil, err
-		}
+func updateChannel(messageChannel chan map[string]string, key string, errMsg string) {
 
-		_, err = members.Create(lb.network, members.CreateOpts{
-			PoolID:       pool.ID,
-			ProtocolPort: ports[0].NodePort, //TODO: need to handle multi-port
-			Address:      addr,
-		}).Extract()
-		if err != nil {
-			pools.Delete(lb.network, pool.ID)
-			return nil, err
-		}
-	}
+	messageMap := make(map[string]string)
+	messageMap[key] = errMsg
+	messageChannel <- messageMap
+	return
+}
 
+func (lb *LoadBalancer) createPort(name string, poolMembers []string, fipPodMap map[string]*api.Pod, port *api.ServicePort, serviceName string, loadBalancerIP net.IP, persistence *vips.SessionPersistence, messageChannel chan map[string]string, vipAddressChan chan string) {
+
+	var address string
+	var vip *vips.VirtualIP
 	var mon *monitors.Monitor
+
+	pool, err := lb.createPool(name, port.Port)
+	if err != nil {
+		updateChannel(messageChannel, "Error", err.Error())
+		return
+	}
+	glog.V(2).Infof("createPort: %s: Created or found pool: %s for port: %d\n", serviceName, pool.ID, port.Port)
+
+	for _, podfip := range poolMembers {
+		poolm, err := lb.createMember(pool.ID, port, podfip, fipPodMap[podfip])
+		if err != nil {
+			glog.V(2).Infof("createPort: Failed to create pool member for service: %s, %v", name, err)
+			updateChannel(messageChannel, "Error", err.Error())
+			return
+		}
+		glog.V(2).Infof("createPort: %s: Added member: %s to pool %s for port: %d", serviceName, poolm.ID, pool.ID, port.Port)
+	}
+
 	if lb.opts.CreateMonitor {
 		mon, err = monitors.Create(lb.network, monitors.CreateOpts{
 			Type:       monitors.TypeTCP,
@@ -792,188 +862,589 @@ func (lb *LoadBalancer) EnsureLoadBalancer(name, region string, loadBalancerIP n
 			MaxRetries: int(lb.opts.MonitorMaxRetries),
 		}).Extract()
 		if err != nil {
-			pools.Delete(lb.network, pool.ID)
-			return nil, err
+			updateChannel(messageChannel, "Error", err.Error())
+			return
 		}
-
+		// Once we support monitors for tess, timedWait here for monitor to become ACTIVE
 		_, err = pools.AssociateMonitor(lb.network, pool.ID, mon.ID).Extract()
 		if err != nil {
-			monitors.Delete(lb.network, mon.ID)
-			pools.Delete(lb.network, pool.ID)
-			return nil, err
+			updateChannel(messageChannel, "Error", err.Error())
+			return
 		}
 	}
-
-	createOpts := vips.CreateOpts{
-		Name:         name,
-		Description:  fmt.Sprintf("Kubernetes external service %s", name),
-		Protocol:     "TCP",
-		ProtocolPort: ports[0].Port, //TODO: need to handle multi-port
-		PoolID:       pool.ID,
-		SubnetID:     lb.opts.SubnetId,
-		Persistence:  persistence,
-	}
-	if loadBalancerIP != nil {
-		createOpts.Address = loadBalancerIP.String()
+	if loadBalancerIP != nil && !loadBalancerIP.IsUnspecified() {
+		address = loadBalancerIP.String()
+	} else {
+		glog.V(4).Infof("createPort: Waiting for VIP Address to be initialized")
+		address = <-vipAddressChan
 	}
 
-	vip, err := vips.Create(lb.network, createOpts).Extract()
+	vip, err = lb.createVip(name, port.Port, pool.ID, address, persistence, serviceName)
 	if err != nil {
-		if mon != nil {
-			monitors.Delete(lb.network, mon.ID)
-		}
-		pools.Delete(lb.network, pool.ID)
-		return nil, err
+		glog.V(2).Infof("createPort: Failed to create vip for service: %s, %v", name, err)
+		vipAddressChan <- address
+		updateChannel(messageChannel, "Error", err.Error())
+		return
 	}
+	vipAddressChan <- vip.Address
 
-	status := &api.LoadBalancerStatus{}
-
-	status.Ingress = []api.LoadBalancerIngress{{IP: vip.Address}}
-
-	if lb.opts.FloatingNetworkId != "" {
-		floatIPOpts := floatingips.CreateOpts{
-			FloatingNetworkID: lb.opts.FloatingNetworkId,
-			PortID:            vip.PortID,
-		}
-		floatIP, err := floatingips.Create(lb.network, floatIPOpts).Extract()
-		if err != nil {
-			return nil, err
-		}
-
-		status.Ingress = append(status.Ingress, api.LoadBalancerIngress{IP: floatIP.FloatingIP})
+	// Wait for all the PoolMembers to become active or timeout
+	err = timedWaitForAll(lb.network, pool.ID, LoadBalancerActiveStatus)
+	if err != nil {
+		glog.V(4).Infof("Pool member timedwait Error: %s for pool:%s", err.Error(), pool.ID)
+		updateChannel(messageChannel, "Error", err.Error())
+		return
 	}
-
-	return status, nil
-
+	// Wait for vip to become active or timeout
+	err = timedWait(lb.network, vip.ID, "vip", LoadBalancerActiveStatus)
+	if err != nil {
+		glog.V(4).Infof("Vip creation timedwait Error: %s for name %s\n", pool.ID, name)
+		updateChannel(messageChannel, "Error", err.Error())
+		return
+	} else {
+		glog.V(4).Infof("Created Vip: %s for name %s", pool.ID, name)
+		address = vip.Address
+		glog.V(2).Infof("CreateTCPLoadBalancer: %s: Successfully created vip: %s with ip: %s for port: %d", serviceName, vip.ID, vip.Address, port.Port)
+		updateChannel(messageChannel, "Success", address)
+		return
+	}
 }
 
-func (lb *LoadBalancer) UpdateLoadBalancer(name, region string, hosts []string) error {
-	glog.V(4).Infof("UpdateLoadBalancer(%v, %v, %v)", name, region, hosts)
+func listMembers(c *gophercloud.ServiceClient, opts members.ListOpts) (membersList []members.Member, err error) {
+	pager := members.List(c, opts)
 
-	vip, err := getVipByName(lb.network, name)
-	if err != nil {
-		return err
-	}
-
-	// Set of member (addresses) that _should_ exist
-	addrs := map[string]bool{}
-	for _, host := range hosts {
-		addr, err := getAddressByName(lb.compute, host)
-		if err != nil {
-			return err
-		}
-
-		addrs[addr] = true
-	}
-
-	// Iterate over members that _do_ exist
-	pager := members.List(lb.network, members.ListOpts{PoolID: vip.PoolID})
 	err = pager.EachPage(func(page pagination.Page) (bool, error) {
+		memberList, err := members.ExtractMembers(page)
+		if err != nil {
+			fmt.Print(err)
+			return false, err
+		}
+		membersList = memberList
+		return true, nil
+	})
+	return membersList, err
+}
+
+// The function gets vip if it already exists, else it creates it
+func (lb *LoadBalancer) createVip(name string, port int, poolid string, address string, persistence *vips.SessionPersistence, serviceName string) (*vips.VirtualIP, error) {
+
+	vipsList, err := getVipByName(lb.network, fmt.Sprintf("%s-%d", name, port), lb.osAuthOpts.TenantID)
+	if err != nil && err != ErrNotFound {
+		return nil, err
+	} else if len(vipsList) == 1 {
+		vip := &vipsList[0]
+		if vip != nil {
+			switch vip.Status {
+
+			case LoadBalancerActiveStatus:
+				glog.V(2).Infof("Found vip %s for name %s with address %s", vip.ID, name, address)
+				return vip, nil
+			case LoadBalancerPendingStatus:
+				glog.V(2).Infof("Found vip %s for name %s with address %s is in PENDING_CREATE status, skip", vip.ID, name, address)
+				return nil, ErrLBPendigCreateStatus
+			case LoadBalancerErrorStatus:
+				glog.V(2).Infof("Found vip %s for name %s with address %s is in ERROR status", vip.ID, name, address)
+				return nil, ErrLBErrorStatus
+			}
+		}
+	} else if len(vipsList) > 1 {
+		//This should never ever happen cause neutron won't allow us to create 2 vips with the same name
+		return nil, fmt.Errorf("More than one vip found for name: %s", fmt.Sprintf("%s-%d", name, port))
+	}
+
+	//else create a new one
+	createOpts := vips.CreateOpts{
+		Name:         fmt.Sprintf("%s-%d", name, port),
+		Description:  fmt.Sprintf("Kubernetes external service %s", name),
+		Protocol:     "TCP",
+		ProtocolPort: port,
+		PoolID:       poolid,
+		Persistence:  persistence,
+		SubnetID:     lb.opts.SubnetId,
+	}
+	if len(address) > 0 {
+		glog.V(4).Infof("%s: Using externalip or previously created ip: %s to create vip", serviceName, address)
+		createOpts.Address = address
+	}
+	glog.V(4).Infof("%s: Vip creation opts: %+v and address is: %s", serviceName, createOpts, address)
+	vip, err := vips.Create(lb.network, createOpts).Extract()
+	if err != nil {
+		return nil, err
+	}
+	return vip, nil
+}
+
+// The function gets member if it already exists, else it creates it
+func (lb *LoadBalancer) createMember(poolid string, port *api.ServicePort, fip string, pod *api.Pod) (*members.Member, error) {
+	var member *members.Member
+	pager := members.List(lb.network, members.ListOpts{Address: fip, PoolID: poolid})
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
 		memList, err := members.ExtractMembers(page)
 		if err != nil {
 			return false, err
 		}
+		if len(memList) > 1 {
+			// todo may be clean up -- spothanis
+			return false, fmt.Errorf("More than 1 member found for: %s", fip)
+		} else if len(memList) == 1 {
+			member = &memList[0]
+		}
+		// no error; member not found
+		return false, nil
+	})
 
-		for _, member := range memList {
-			if _, found := addrs[member.Address]; found {
-				// Member already exists
-				delete(addrs, member.Address)
-			} else {
-				// Member needs to be deleted
-				err = members.Delete(lb.network, member.ID).ExtractErr()
-				if err != nil {
-					return false, err
+	if err != nil {
+		return nil, err
+	} else if member != nil {
+		switch member.Status {
+
+		case LoadBalancerActiveStatus:
+			glog.V(2).Infof("Found member %s for address %s", member.ID, fip)
+			return member, nil
+		case LoadBalancerPendingStatus:
+			glog.V(2).Infof("Found member %s for address %s is in PENDING_CREATE status, skip", member.ID, fip)
+			return nil, ErrLBPendigCreateStatus
+		case LoadBalancerErrorStatus:
+			glog.V(2).Infof("Found member %s for address %s is in ERROR status", member.ID, fip)
+			return nil, ErrLBErrorStatus
+		}
+	}
+
+	poolMemberTargetPort, err := getContainerPort(port, pod)
+	if err != nil {
+		return nil, fmt.Errorf("Failed get target port for pod with fip: %s and id: %s", fip, pod.UID)
+	}
+	createOpts := members.CreateOpts{
+		PoolID:       poolid,
+		ProtocolPort: poolMemberTargetPort,
+		Address:      fip,
+	}
+	member, err = members.Create(lb.network, createOpts).Extract()
+	if err != nil {
+		return nil, err
+	}
+	return member, nil
+}
+
+type test struct {
+	s gophercloud.ServiceClient
+}
+
+// The function gets member if it already exists, else it creates it
+func (lb *LoadBalancer) createPool(name string, port int) (*pools.Pool, error) {
+
+	lbmethod := lb.opts.LBMethod
+	if lbmethod == "" {
+		lbmethod = pools.LBMethodRoundRobin
+	}
+	poolList, err := getPoolByName(lb.network, name, lb.osAuthOpts.TenantID)
+
+	if err != nil && err != ErrNotFound {
+		return nil, err
+	}
+
+	if poolList != nil {
+		for _, p := range poolList {
+			if strings.Contains(p.Name, strconv.Itoa(port)) {
+				switch p.Status {
+
+				case LoadBalancerActiveStatus:
+					glog.V(2).Infof("Found pool: %s for service %s, skipping creation", p.ID, name)
+					return &p, nil
+				case LoadBalancerPendingStatus:
+					glog.V(2).Infof("Found pool: %s for service %s is in PENDING_CREATE, skip", p.ID, name)
+					return nil, ErrLBPendigCreateStatus
+				case LoadBalancerErrorStatus:
+					glog.V(2).Infof("Found pool: %s for service %s is in ERROR status", p.ID, name)
+					return nil, ErrLBErrorStatus
 				}
 			}
 		}
+	}
 
+	pool, err := pools.Create(lb.network, pools.CreateOpts{
+		Name:     fmt.Sprintf("%s-%d", name, port),
+		Protocol: pools.ProtocolTCP,
+		SubnetID: lb.opts.SubnetId,
+		LBMethod: lbmethod,
+	}).Extract()
+	if err != nil {
+		return nil, err
+	}
+	// Wait for the pool to become active or timeout
+	err = timedWait(lb.network, pool.ID, "pool", LoadBalancerActiveStatus)
+	if err != nil {
+		glog.V(4).Infof("Pool creation Error: %s for name %s", pool.ID, name)
+		return nil, err
+	} else {
+		glog.V(4).Infof("Created pool: %s for name %s", pool.ID, name)
+		return pool, nil
+	}
+}
+
+func (lb *LoadBalancer) getVMPortIDbyFQDN(fqdn string) (string, error) {
+	srv, err := getServerByFQDN(lb.compute, fqdn)
+	if err != nil {
+		return "", err
+	}
+	pager := ports.List(lb.network, ports.ListOpts{
+		DeviceID: srv.ID,
+	})
+	var portID string
+	err = pager.EachPage(func(page pagination.Page) (bool, error) {
+		ports, err := ports.ExtractPorts(page)
+		if err != nil {
+			return false, err
+		}
+		if len(ports) == 0 {
+			return false, errors.New(fmt.Sprint("Failed to get port id for: %s", fqdn))
+		}
+		if len(ports) == 1 {
+			portID = ports[0].ID
+			return true, nil
+		}
+		if len(ports) == 2 {
+			if len(ports[0].FixedIPs) > 1 {
+				portID = ports[0].ID
+			} else {
+				portID = ports[1].ID
+			}
+		} else {
+			return false, errors.New("More than 2 ports found on the VM, hence not able to figure out the port")
+		}
 		return true, nil
 	})
+
+	if portID == "" {
+		return "", errors.New("Second port not found in getVMIDbyFQDN")
+	}
+
+	return portID, nil
+
+}
+
+func (lb *LoadBalancer) findFloatingIP(portid string, podip string) (string, error) {
+	var ip = net.ParseIP(strings.TrimSpace(podip))
+	if ip == nil {
+		return "", fmt.Errorf("%s is not a valid pod ip", podip)
+	}
+	lopts := floatingips.ListOpts{
+		PortID:            portid,
+		FloatingNetworkID: lb.opts.FloatingIPNetId,
+		FixedIP:           podip,
+	}
+	var fip string
+	err := floatingips.List(lb.network, lopts).EachPage(func(page pagination.Page) (bool, error) {
+		fips, err := floatingips.ExtractFloatingIPs(page)
+		if err != nil {
+			return false, err
+		}
+		if len(fips) == 1 {
+			fip = fips[0].FloatingIP
+			return true, nil
+		} else if len(fips) == 0 {
+			glog.V(4).Infof("No floatingip found for fixed ip: %s", podip)
+			return true, nil
+		} else {
+			fip = fips[0].FloatingIP
+			glog.Warningf("More than one 1 floatingip found %v for fixed ip: %s, using the 1st one %s and deleting the rest", fips, podip, fip)
+			//attempt to clean up rest
+			for i := 1; i < len(fips); i++ {
+				lb.deleteFloatingIP(fips[i].FloatingIP)
+			}
+			return true, nil
+		}
+	})
+
+	if err != nil {
+		return "", err
+	}
+	return fip, nil
+}
+
+func (lb *LoadBalancer) createFloatingIPsforPods(host string, podip string) (string, error) {
+	portid, err := lb.getVMPortIDbyFQDN(host)
+	if err != nil {
+		return "", err
+	}
+
+	floatingip, err := lb.findFloatingIP(portid, podip)
+
+	if err != nil {
+		return "", err
+	} else if len(floatingip) > 0 {
+		glog.V(2).Infof("Floating ip %s exists for fixed ip %s", floatingip, podip)
+		return floatingip, nil
+	}
+	opts := floatingips.CreateOpts{
+		FloatingNetworkID: lb.opts.FloatingIPNetId,
+		PortID:            portid,
+		FixedIP:           podip,
+	}
+	fip, err := floatingips.Create(lb.network, opts).Extract()
+	if err != nil {
+		return "", err
+	}
+	glog.V(2).Infof("Created floating ip: %s for port: %s and fixed-ip: %s", fip.FloatingIP, portid, podip)
+	return fip.FloatingIP, nil
+}
+
+func getServicePodListbyLBName(name string) ([]api.Pod, *api.Service, error) {
+
+	kclient, err := getKubeClient()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	namespace, servicename, err := getServiceNamefromlbname(name, kclient)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	service, err := kclient.Services(namespace).Get(servicename)
+	if err != nil {
+		return nil, nil, err
+	}
+	podSelector := labels.Set(service.Spec.Selector).AsSelector()
+	podsList, err := kclient.Pods(namespace).List(api.ListOptions{
+		LabelSelector: podSelector,
+		FieldSelector: fields.Everything(),
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return podsList.Items, service, nil
+}
+
+func getPoolMembersByPodsList(podsList []api.Pod, lb *LoadBalancer) (map[string]bool, map[string]*api.Pod, error) {
+
+	poolmembers := make(map[string]bool)
+	fipPodMap := make(map[string]*api.Pod)
+	for _, pod := range podsList {
+		fip, err := lb.createFloatingIPsforPods(pod.Spec.NodeName, pod.Status.PodIP)
+		if err != nil {
+			glog.V(2).Infof("UpdateLoadBalancer: PodName:%v, IP:%s, Failed creating/finding floating IP with err:%v", pod.Spec.NodeName, pod.Status.PodIP, err)
+			return nil, nil, err
+		}
+		glog.V(2).Infof("UpdateLoadBalancer: Created/found floating ip: %s for pod: %s", fip, pod.Status.PodIP)
+		poolmembers[fip] = true
+		fipPodMap[fip] = &pod
+	}
+	return poolmembers, fipPodMap, nil
+}
+
+func copyPoolMembersForVip(poolMembers map[string]bool, fipPodMap map[string]*api.Pod, poolMembersForVip map[string]bool, fipPodMapForVip map[string]*api.Pod) {
+
+	for key, value := range poolMembers {
+		poolMembersForVip[key] = value
+	}
+	for key, value := range fipPodMap {
+		fipPodMapForVip[key] = value
+	}
+}
+
+func (lb *LoadBalancer) UpdateLoadBalancer(name, region string, hosts []string) error {
+	glog.V(2).Infof("UpdateLoadBalancer(%v, %v, %v)", name, region, hosts)
+
+	vipList, err := getVipByName(lb.network, name, lb.osAuthOpts.TenantID)
+	if err != nil {
+		return err
+	}
+	glog.V(4).Infof("UpdateLoadBalancer: totals %d vips:\n", len(vipList))
+	podsList, service, err := getServicePodListbyLBName(name)
+	if err != nil {
+		return err
+	}
+	glog.V(4).Infof("UpdateLoadBalancer: % pods for service:%v\n", len(podsList), service.Name)
+	poolMembers, fipPodMap, err := getPoolMembersByPodsList(podsList, lb)
 	if err != nil {
 		return err
 	}
 
-	// Anything left in addrs is a new member that needs to be added
-	for addr := range addrs {
-		_, err := members.Create(lb.network, members.CreateOpts{
-			PoolID:       vip.PoolID,
-			Address:      addr,
-			ProtocolPort: vip.ProtocolPort,
-		}).Extract()
+	poolMembersForVip := make(map[string]bool)
+	fipPodMapForVip := make(map[string]*api.Pod)
+
+	portServicePortMap := make(map[int]*api.ServicePort)
+
+	for portIndex, port := range service.Spec.Ports {
+
+		portServicePortMap[port.Port] = &(service.Spec.Ports[portIndex])
+	}
+
+	for _, vip := range vipList {
+		// for each vip, we need a temporary copy of the poolmembers and fipPodMap to work on
+		copyPoolMembersForVip(poolMembers, fipPodMap, poolMembersForVip, fipPodMapForVip)
+
+		// Iterate over members that _do_ exist
+		pager := members.List(lb.network, members.ListOpts{PoolID: vip.PoolID})
+		err = pager.EachPage(func(page pagination.Page) (bool, error) {
+			memList, err := members.ExtractMembers(page)
+			if err != nil {
+				return false, err
+			}
+			for _, member := range memList {
+				if _, found := poolMembersForVip[member.Address]; found {
+					// Member already exists
+					delete(poolMembersForVip, member.Address)
+					glog.V(2).Infof("UpdateLoadBalancer: %s still has member: %s nothing to do", name, poolMembersForVip)
+				} else {
+					// Member needs to be deleted TODO: PENDING_DELETE check?
+					err = members.Delete(lb.network, member.ID).ExtractErr()
+					if err != nil {
+						return false, err
+					}
+					err = lb.deleteFloatingIP(member.Address)
+					if err != nil {
+						return false, err
+					}
+					glog.V(2).Infof("UpdateLoadBalancer: %s: Deleted obsolete pool member: %s and floatingip: %s for vip %s", service.Name, member.ID, member.Address, vip.Address)
+				}
+			}
+			return true, nil
+		})
 		if err != nil {
 			return err
 		}
+		// Anything left in poolMembersForVip is a new member that needs to be added
+		for addr := range poolMembersForVip {
+			_, err := lb.createMember(vip.PoolID, portServicePortMap[vip.ProtocolPort], addr, fipPodMapForVip[addr])
+			if err != nil {
+				return err
+			}
+			glog.V(2).Infof("UpdateLoadBalancer: %s: Added member %s to pool %s for vip %s", service.Name, addr, vip.PoolID, vip.Address)
+		}
 	}
-
 	return nil
 }
 
 func (lb *LoadBalancer) EnsureLoadBalancerDeleted(name, region string) error {
 	glog.V(4).Infof("EnsureLoadBalancerDeleted(%v, %v)", name, region)
 
-	vip, err := getVipByName(lb.network, name)
+	vipsList, err := getVipByName(lb.network, name, lb.osAuthOpts.TenantID)
 	if err != nil && err != ErrNotFound {
 		return err
 	}
 
-	if lb.opts.FloatingNetworkId != "" && vip != nil {
-		floatingIP, err := getFloatingIPByPortID(lb.network, vip.PortID)
-		if err != nil && !isNotFound(err) {
-			return err
-		}
-		if floatingIP != nil {
-			err = floatingips.Delete(lb.network, floatingIP.ID).ExtractErr()
+	// We have to delete the VIP before the pool can be deleted,
+	// so no point continuing if this fails.
+	if len(vipsList) > 0 {
+		for _, vip := range vipsList {
+			// If vip is in PENDING_DELETE, skip
+			if vip.Status == "PENDING_DELETE" {
+				glog.V(4).Infof("The vip %s is already in PENDING_DELETE state, skipping it\n", vip.ID)
+				continue
+			}
+			err := vips.Delete(lb.network, vip.ID).ExtractErr()
 			if err != nil && !isNotFound(err) {
 				return err
 			}
+			glog.V(4).Infof("EnsureTCPLoadBalancerDeleted: Deleted vip %s", vip.Address)
 		}
+		glog.V(2).Infof("EnsureTCPLoadBalancerDeleted: Deleted vips %v", vipsList)
+	} else {
+		glog.V(2).Infof("EnsureTCPLoadBalancerDeleted: No vips found for service:  %s", name)
 	}
-
-	// We have to delete the VIP before the pool can be deleted,
-	// so no point continuing if this fails.
-	if vip != nil {
-		err := vips.Delete(lb.network, vip.ID).ExtractErr()
-		if err != nil && !isNotFound(err) {
-			return err
+	var poolList []pools.Pool
+	if len(vipsList) > 0 {
+		for _, vip := range vipsList {
+			pool, err := pools.Get(lb.network, vip.PoolID).Extract()
+			if err != nil && !isNotFound(err) {
+				return err
+			}
+			poolList = append(poolList, *pool)
 		}
-	}
 
-	var pool *pools.Pool
-	if vip != nil {
-		pool, err = pools.Get(lb.network, vip.PoolID).Extract()
-		if err != nil && !isNotFound(err) {
-			return err
-		}
 	} else {
 		// The VIP is gone, but it is conceivable that a Pool
 		// still exists that we failed to delete on some
 		// previous occasion.  Make a best effort attempt to
 		// cleanup any pools with the same name as the VIP.
-		pool, err = getPoolByName(lb.network, name)
+		poolList, err = getPoolByName(lb.network, name, lb.osAuthOpts.TenantID)
 		if err != nil && err != ErrNotFound {
 			return err
 		}
 	}
 
-	if pool != nil {
-		for _, monId := range pool.MonitorIDs {
-			_, err = pools.DisassociateMonitor(lb.network, pool.ID, monId).Extract()
-			if err != nil {
-				return err
-			}
+	if len(poolList) > 0 {
+		for _, pool := range poolList {
+			// We want to explicitly delete the pool member so that we can clean up the floating ips associated
+			err := lb.deletePoolMembers(pool.ID)
+			for _, monId := range pool.MonitorIDs {
+				//Once we support monitors for tess, Add a check here for PENDING_DELETE status
+				_, err = pools.DisassociateMonitor(lb.network, pool.ID, monId).Extract()
+				if err != nil {
+					return err
+				}
 
-			err = monitors.Delete(lb.network, monId).ExtractErr()
+				err = monitors.Delete(lb.network, monId).ExtractErr()
+				if err != nil && !isNotFound(err) {
+					return err
+				}
+				glog.V(4).Infof("EnsureTCPLoadBalancerDeleted: Deleted Monitor %s for pool %s", monId, pool.ID)
+			}
+			// If pool is in PENDING_DELETE, skip
+			if pool.Status == "PENDING_DELETE" {
+				glog.V(4).Infof("The pool %s is already in PENDING_DELETE state, skipping it\n", pool.ID)
+				continue
+			}
+			err = pools.Delete(lb.network, pool.ID).ExtractErr()
 			if err != nil && !isNotFound(err) {
 				return err
 			}
+			glog.V(4).Infof("EnsureTCPLoadBalancerDeleted: Deleted Pool ID: %s, Name: %s", pool.ID, pool.Name)
 		}
-		err = pools.Delete(lb.network, pool.ID).ExtractErr()
-		if err != nil && !isNotFound(err) {
-			return err
-		}
+		glog.V(2).Infof("EnsureTCPLoadBalancerDeleted: Deleted Pools %v", poolList)
+	} else {
+		glog.V(2).Infof("EnsureTCPLoadBalancerDeleted: No pools found for service:  %s", name)
 	}
 
 	return nil
+}
+
+func (lb *LoadBalancer) deletePoolMembers(poolid string) error {
+	pager := members.List(lb.network, members.ListOpts{PoolID: poolid})
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		memList, err := members.ExtractMembers(page)
+		if err != nil {
+			return false, err
+		}
+		for _, member := range memList {
+			err = lb.deleteFloatingIP(member.Address)
+			if err != nil {
+				return false, err
+			}
+			glog.V(2).Infof("Successfully deleted floating ip: %s of the pool member: %s\n", member.Address, member.ID)
+			glog.V(4).Infof("Member:%s deletion is taken care by pools.Delete, skipping it\n", member.ID)
+		}
+		return true, nil
+	})
+	return err
+}
+
+func (lb *LoadBalancer) deleteFloatingIP(floatingip string) error {
+	pager := floatingips.List(lb.network, floatingips.ListOpts{FloatingIP: floatingip})
+	err := pager.EachPage(func(page pagination.Page) (bool, error) {
+		fips, err := floatingips.ExtractFloatingIPs(page)
+		if err != nil {
+			return false, err
+		}
+		if len(fips) == 0 {
+			glog.V(4).Infof("Floating ip: %s does not exist..ignoring", floatingip)
+			return true, nil
+		} else if len(fips) > 1 {
+			glog.Errorf("More than one 1 floating ip found for: %s", floatingip)
+			return false, errors.New(fmt.Sprintf("More than one 1 floating ip found for: %s\n", floatingip))
+		} else {
+			res := floatingips.Delete(lb.network, fips[0].ID)
+			if res.Err != nil {
+				glog.Errorf("Failed to delete floating ip: %s Err: %v", floatingip, res.ErrResult)
+				return false, res.Err
+			}
+		}
+		return true, nil
+	})
+	return err
 }
 
 func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
@@ -981,6 +1452,7 @@ func (os *OpenStack) Zones() (cloudprovider.Zones, bool) {
 
 	return os, true
 }
+
 func (os *OpenStack) GetZone() (cloudprovider.Zone, error) {
 	glog.V(1).Infof("Current zone is %v", os.region)
 
@@ -1006,11 +1478,10 @@ func (os *OpenStack) AttachDisk(diskName string, detachable bool, computeUUID st
 	}
 
 	if len(disk.Attachments) > 0 && disk.Attachments[0]["server_id"] != nil {
-		if os.localInstanceID == disk.Attachments[0]["server_id"] {
-			glog.V(4).Infof("Disk: %q is already attached to compute: %q", diskName, os.localInstanceID)
+		if computeUUID == disk.Attachments[0]["server_id"] {
+			glog.Infof("Disk: %q is already attached to compute: %q\n", diskName, computeUUID)
 			return disk.ID, nil
 		} else {
-
 			if detachable {
 				glog.V(2).Infof("Disk %s is detachable.. attempting to detach from %s", disk.ID, disk.Attachments[0]["server_id"])
 				if id, ok := disk.Attachments[0]["server_id"].(string); ok {
@@ -1023,22 +1494,21 @@ func (os *OpenStack) AttachDisk(diskName string, detachable bool, computeUUID st
 					glog.Errorf("Failed to find compute to which disk: %s is connected", disk.ID)
 				}
 			} else {
-
-				errMsg := fmt.Sprintf("Disk %q is attached to a different compute: %q, should be detached before proceeding", diskName, disk.Attachments[0]["server_id"])
+				errMsg := fmt.Sprintf("Disk %s is attached to a different compute: %s, should be detached before proceeding", diskName, disk.Attachments[0]["server_id"])
 				glog.Errorf(errMsg)
 				return "", errors.New(errMsg)
 			}
 		}
 	}
 	// add read only flag here if possible spothanis
-	_, err = volumeattach.Create(cClient, os.localInstanceID, &volumeattach.CreateOpts{
+	_, err = volumeattach.Create(cClient, computeUUID, &volumeattach.CreateOpts{
 		VolumeID: disk.ID,
 	}).Extract()
 	if err != nil {
-		glog.Errorf("Failed to attach %s volume to %s compute", diskName, os.localInstanceID)
+		glog.Infof("Failed to attach %s volume to %s compute", diskName, computeUUID)
 		return "", err
 	}
-	glog.V(2).Infof("Successfully attached %s volume to %s compute", diskName, os.localInstanceID)
+	glog.Infof("Successfully attached %s volume to %s compute", diskName, computeUUID)
 	return disk.ID, nil
 }
 
@@ -1048,6 +1518,7 @@ func (os *OpenStack) DetachDisk(partialDiskId string, computeUUID string) error 
 	if err != nil {
 		return err
 	}
+
 	cClient, err := openstack.NewComputeV2(os.provider, gophercloud.EndpointOpts{
 		Region: os.region,
 	})
@@ -1055,17 +1526,18 @@ func (os *OpenStack) DetachDisk(partialDiskId string, computeUUID string) error 
 		glog.Errorf("Unable to initialize nova client for region: %s", os.region)
 		return err
 	}
+
 	if len(disk.Attachments) > 0 && disk.Attachments[0]["server_id"] != nil && computeUUID == disk.Attachments[0]["server_id"] {
 		// This is a blocking call and effects kubelet's performance directly.
 		// We should consider kicking it out into a separate routine, if it is bad.
 		err = volumeattach.Delete(cClient, computeUUID, disk.ID).ExtractErr()
 		if err != nil {
-			glog.Errorf("Failed to delete volume %s from compute %s attached %v", disk.ID, computeUUID, err)
+			glog.Errorf("Failed to delete volume %s from compute %s attached %v\n", disk.ID, computeUUID, err)
 			return err
 		}
 		glog.V(2).Infof("Successfully detached volume: %s from compute: %s", disk.ID, computeUUID)
 	} else {
-		errMsg := fmt.Sprintf("Disk: %s has no attachments or is not attached to compute: %s", disk.Name, computeUUID)
+		errMsg := fmt.Sprintf("Disk: %s has no attachments or is not attached to compute: %s\n", disk.Name, computeUUID)
 		glog.Errorf(errMsg)
 		return errors.New(errMsg)
 	}
@@ -1107,6 +1579,87 @@ func (os *OpenStack) getVolume(diskName string) (volumes.Volume, error) {
 		return volume, err
 	}
 	return volume, err
+}
+
+//This func returns namespace, and service name
+func getServiceNamefromlbname(lbname string, kclient client.Interface) (string, string, error) {
+
+	slist, err := kclient.Services(api.NamespaceAll).List(api.ListOptions{LabelSelector: labels.Everything()})
+	if err != nil {
+		return "", "", err
+	}
+
+	for _, srv := range slist.Items {
+		expectedLBName := cloudprovider.GetLoadBalancerName(&srv)
+		if strings.EqualFold(lbname, expectedLBName) {
+			return srv.Namespace, srv.Name, nil
+		}
+	}
+	return "", "", fmt.Errorf("%s: %s", ErrServiceNotFound, lbname)
+}
+
+func getKubeClient() (client.Interface, error) {
+	authInfo, err := auth.LoadFromFile("/etc/sysconfig/.kubernetes_auth")
+	if err != nil {
+		glog.Warningf("Could not load kubernetes auth path: %v. Continuing with defaults.", err)
+	}
+	if authInfo == nil {
+		// authInfo didn't load correctly - continue with defaults.
+		authInfo = &auth.Info{}
+	}
+
+	clientConfig, err := authInfo.MergeWithConfig(restclient.Config{})
+	if err != nil {
+		return nil, err
+	}
+	glog.V(4).Infof("client config: %v, host is %s", clientConfig, clientConfig.Host)
+	c, err := client.New(&clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// Get the right container port;
+// It could be the one directly in the service spec or a name port defined in pod
+func getContainerPort(svcPort *api.ServicePort, pod *api.Pod) (int, error) {
+	portName := svcPort.TargetPort
+	switch portName.Type {
+	case intstr.String:
+		if len(portName.StrVal) == 0 {
+			return findDefaultPort(pod, svcPort.Port, svcPort.Protocol), nil
+		}
+		name := portName.StrVal
+		for _, container := range pod.Spec.Containers {
+			for _, port := range container.Ports {
+				if port.Name == name && port.Protocol == svcPort.Protocol {
+					return port.ContainerPort, nil
+				}
+			}
+		}
+	case intstr.Int:
+		if portName.IntVal == 0 {
+			return findDefaultPort(pod, svcPort.Port, svcPort.Protocol), nil
+		}
+		return int(portName.IntVal), nil
+	}
+	return 0, fmt.Errorf("no suitable port for manifest: %s", pod.UID)
+}
+
+func findDefaultPort(pod *api.Pod, servicePort int, proto api.Protocol) int {
+	for _, container := range pod.Spec.Containers {
+		for _, port := range container.Ports {
+			if port.Protocol == proto {
+				return port.ContainerPort
+			}
+		}
+	}
+	return servicePort
+}
+
+// InstanceType returns the type of the specified instance.
+func (i *Instances) InstanceType(name string) (string, error) {
+	return "", nil
 }
 
 // Create a volume of given size (in GiB)

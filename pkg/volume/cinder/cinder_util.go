@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"fmt"
+
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/util/exec"
 	"k8s.io/kubernetes/pkg/volume"
@@ -93,7 +94,7 @@ func (util *CinderDiskUtil) AttachDisk(b *cinderVolumeBuilder, globalPDPath stri
 
 // Get external id of the node from api server.
 func getNodeExternalId(cd *cinderVolume) (string, error) {
-	node, err := cd.plugin.host.GetKubeClient().Core().Nodes().Get(cd.plugin.host.GetNodeName())
+	node, err := cd.plugin.host.GetKubeClient().Core().Nodes().Get(cd.plugin.host.GetHostName())
 	if err != nil {
 		glog.Errorf("Failed getting node's external id with error: %s", err.Error())
 		return "", err
