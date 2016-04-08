@@ -250,9 +250,27 @@ EOF
     if [[ ${1-} == '--master' ]]; then
       echo "Adding master configuration to execute custom pillars"
       printf '%s\n\n%s\n  %s\n' 'extension_modules: /srv/modules' 'ext_pillar:' '- custom_pillar:' >> /etc/salt/master
+      # issue 877 enable salt master key gpg sign
+      printf 'master_sign_pubkey: True' >> /etc/salt/master
       systemctl start salt-api
       systemctl start salt-master
+      #issue 802 store salt keys. wait for salt key generate
+      sleep 30
     fi
+    # issue 877 enable salt master key gpg sign
+    printf 'verify_master_pubkey_sign: True' >> /etc/salt/minion
+    #start then pki/minion directory created
     systemctl start salt-minion
+    #issue 802 store salt keys. cp to tmp, and bootstrap can get them to upload
+    sleep 3
+    if [ -f /etc/salt/pki/master/master_sign.pub -a -f /etc/salt/pki/master/master.pub ]; then
+      cp /etc/salt/pki/master/master_sign.pub /etc/salt/pki/minion/ >/dev/null
+      cp /etc/salt/pki/master/master.pub /etc/salt/pki/minion/ >/dev/null
+    else
+      eval  "${SALT_PUB_KEY_CMD}"
+      eval  "${SALT_SIGN_KEY_CMD}"
+    fi
+    #restart to enable salt key checking
+    systemctl restart salt-minion
   fi
 }

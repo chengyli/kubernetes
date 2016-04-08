@@ -48,9 +48,10 @@ admission_control: 'ServiceAccount,ResourceQuota,LimitRanger'
 network_mode: '$(echo "$NETWORK_MODE" | sed -e "s/'/''/g")'
 #the externally visible domain suffix, e.g slc01.tess.io
 domain_suffix: '$(echo "$DOMAIN_SUFFIX" | sed -e "s/'/''/g")'
-cluster_external_name: '$(echo "${CLUSTER_EXTERNAL_DNS_NAME}" | sed -e "s/'/''/g")'
-api_servers_with_port: 'https://$(echo ${CLUSTER_EXTERNAL_DNS_NAME}${DOMAIN_SUFFIX}:${APISERVER_PORT} | sed -e "s/'/''/g")'
-master_extra_sans: 'IP:192.168.0.1,DNS:kubernetes,DNS:kubernetes-ro,DNS:kubernetes.default,DNS:kubernetes.default.svc,DNS:kubernetes.default.svc.cluster.local,DNS:$(echo ${CLUSTER_EXTERNAL_DNS_NAME}${DOMAIN_SUFFIX})'
+cluster_external_name: '$(echo "${CLUSTER_APISERVER_DNS_NAME}" | sed -e "s/'/''/g")'
+cluster_domain_suffix: '$(echo "${CLUSTER_DOMAIN_SUFFIX}" | sed -e "s/'/''/g")'
+api_servers_with_port: 'https://$(echo ${CLUSTER_APISERVER_DNS_NAME}:${APISERVER_PORT} | sed -e "s/'/''/g")'
+master_extra_sans: 'IP:192.168.0.1,DNS:kubernetes,DNS:kubernetes-ro,DNS:kubernetes.default,DNS:kubernetes.default.svc,DNS:kubernetes.default.svc.cluster.local,DNS:$(echo "*.${CLUSTER_DOMAIN_SUFFIX}")'
 EOF
 
 if [[ "${ENABLE_API_SERVER_LB}" == "true" ]]; then

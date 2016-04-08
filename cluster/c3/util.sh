@@ -19,6 +19,7 @@
 KUBE_ROOT=$(dirname "${BASH_SOURCE}")/../..
 
 source "${KUBE_ROOT}/cluster/c3/config-default.sh"
+source "${KUBE_ROOT}/cluster/c3/credentials-store.sh"
 source "${KUBE_ROOT}/cluster/c3/ETCD-cinder-volume.sh"
 
 function long-sleep() {
@@ -414,6 +415,7 @@ function get-ssh-key() {
   if [ ! -f $HOME/.ssh/${SSH_KEY_NAME} ]; then
     echo -e "${color_yellow}+++ Generating SSH KEY ${HOME}/.ssh/${SSH_KEY_NAME} ${color_norm}"
     ssh-keygen -f ${HOME}/.ssh/${SSH_KEY_NAME} -N '' > /dev/null
+    upload-credential $HOME/.ssh/${SSH_KEY_NAME}
   fi
 
   if ! $(nova keypair-list | grep $SSH_KEY_NAME > /dev/null 2>&1); then
@@ -551,10 +553,15 @@ function create-provision-script-for-master {
         BRIDGEABLE_DEVICE="eth0"
   fi
 
+  #issue 877 enable salt master auto-accept with key gpg sign soultion
+  if [ "$SALT_MASTER" != "$MASTER_NAME" ]; then
+        export SALT_PUB_KEY_CMD=`get-credential-download-cmd ${SALT_PUB_KEY} ${SALT_MINION_PKI}`
+        export SALT_SIGN_KEY_CMD=`get-credential-download-cmd ${SALT_PUB_SIGN} ${SALT_MINION_PKI}`
+  fi
   (
     echo "#! /bin/bash"
     echo "readonly ATOMIC_NODE='${ATOMIC_NODE}'"
-    echo "readonly NODE_INSTANCE_PREFIX='${INSTANCE_PREFIX}-minion'"
+    echo "readonly NODE_INSTANCE_PREFIX='${INSTANCE_PREFIX}-master'"
     echo "readonly SERVER_BINARY_TAR_URL='${SERVER_BINARY_TAR_URL}'"
     echo "readonly SALT_TAR_URL='${SALT_TAR_URL}'"
     echo "readonly MASTER_USER='${MASTER_USER}'"
@@ -604,18 +611,21 @@ function create-provision-script-for-master {
     echo "readonly SALT_MASTER_FQDN='${SALT_MASTER_FQDN:-}'"
     echo "readonly SALT_MASTER_IP='${SALT_MASTER_IP:-}'"
     echo "readonly SALT_MASTER_PUBLIC_IP='${SALT_MASTER_PUBLIC_IP:-}'"
+    echo "readonly CLUSTER_DOMAIN_SUFFIX='${CLUSTER_DOMAIN_SUFFIX:-}'"
     grep -v "^#" "${KUBE_ROOT}/cluster/c3/templates/common.sh"
     if [ $ATOMIC_NODE == "false" ]; then
       grep -v "^#" "${KUBE_ROOT}/cluster/c3/templates/installers.sh"
     fi
     if [ "$SALT_MASTER" = "$MASTER_NAME" ]; then
         echo "readonly IS_SALT_MASTER=true"
-        echo "readonly CLUSTER_EXTERNAL_DNS_NAME='${CLUSTER_EXTERNAL_DNS_NAME:-}'"
+        echo "readonly CLUSTER_APISERVER_DNS_NAME='${CLUSTER_APISERVER_DNS_NAME:-}'"
         echo "readonly ENABLE_API_SERVER_LB='${ENABLE_API_SERVER_LB:-false}'"
         echo "readonly APISERVER_PORT='${APISERVER_PORT:-}'"
         grep -v "^#" "${KUBE_ROOT}/cluster/c3/templates/create-dynamic-salt-files.sh"
         grep -v "^#" "${KUBE_ROOT}/cluster/c3/templates/download-release.sh"
     fi
+    echo "readonly SALT_PUB_KEY_CMD='${SALT_PUB_KEY_CMD:-}'"
+    echo "readonly SALT_SIGN_KEY_CMD='${SALT_SIGN_KEY_CMD:-}'"
     grep -v "^#" "${KUBE_ROOT}/cluster/c3/templates/etcd-mount.sh"
     grep -v "^#" "${KUBE_TEMP}/create-${MASTER_NAME}-tess-conf.sh"
     if [ $ATOMIC_NODE == "true" ]; then
@@ -668,6 +678,9 @@ function create-provision-script-for-minion {
     fi
     echo "$TAB_PREFIX Salt master is: $SALT_MASTER_FQDN"
     echo "$TAB_PREFIX Minion subnet is: ${MINION_SUBNET}"
+    #issue 877 enable salt master auto-accept with key gpg sign soultion
+    export SALT_PUB_KEY_CMD=`get-credential-download-cmd ${SALT_PUB_KEY} ${SALT_MINION_PKI}`
+    export SALT_SIGN_KEY_CMD=`get-credential-download-cmd ${SALT_PUB_SIGN} ${SALT_MINION_PKI}`
     (
       echo "#! /bin/bash"
       echo "ATOMIC_NODE='${ATOMIC_NODE}'"
@@ -696,6 +709,9 @@ function create-provision-script-for-minion {
       echo "readonly SALT_MASTER_FQDN='${SALT_MASTER_FQDN}'"
       echo "readonly SALT_MASTER_IP='${SALT_MASTER_IP}'"
       echo "readonly SALT_MASTER_PUBLIC_IP='${SALT_MASTER_PUBLIC_IP}'"
+      echo "readonly CLUSTER_DOMAIN_SUFFIX='${CLUSTER_DOMAIN_SUFFIX:-}'"
+      echo "readonly SALT_PUB_KEY_CMD='${SALT_PUB_KEY_CMD:-}'"
+      echo "readonly SALT_SIGN_KEY_CMD='${SALT_SIGN_KEY_CMD:-}'"
       if [ $ATOMIC_NODE == "true" ]; then
         grep -v "^#" "${KUBE_ROOT}/cluster/c3/templates/common.sh"
         grep -v "^#" "${KUBE_TEMP}/create-$MINION_NAME-tess-conf.sh"
@@ -810,62 +826,7 @@ function validate-network {
     fi
 }
 
-function accept-minion-key() {
-    local salt_master_ip=$1
-    local salt_master=$2
-    local minion_id=$3
-    # $SALT_MASTER_IP $SALT_MASTER_FQDN $SALT_MINION_FQDN
-    # Accept salt minion key on salt master, here the salt minion_id is node FQDN
-    (
-        echo "#! /bin/bash"
-        echo "cd /"
-        echo "echo Accepting salt minion key with minion_id ${minion_id}"
-        echo "echo Waiting for salt to be fully installed"
-        echo 'start=$SECONDS'
-        echo "until which salt-key > /dev/null ; do"
-        echo "    sleep 2"
-        echo '    duration=$(( SECONDS - start ))'
-        echo '    if [ $duration -gt 600 ]; then'
-        echo "        exit 1"
-        echo "    fi"
-        echo "done"
-        echo "echo Waiting for salt minion ${minion_id} key requesting"
-        echo 'start=$SECONDS'
-        echo "until salt-key | grep ${minion_id} > /dev/null ; do"
-        echo "    printf '.'"
-        echo "    sleep 2"
-        echo '    duration=$(( SECONDS - start ))'
-        echo '    if [ $duration -gt 600 ]; then'
-        echo "        echo Timed out waiting for salt to be fully installed"
-        echo "        exit 1"
-        echo "    fi"
-        echo "done"
-        echo "echo"
-        echo "echo Y | salt-key -a ${minion_id}"
-    ) > salt-master-accept-minion-key.sh
 
-    echo -e "${color_yellow}+++ Accepting salt minion key with minion_id ${minion_id} on salt master ${salt_master}. ${color_norm}"
-    if [ -f ~/.ssh/known_hosts ]; then
-        mv ~/.ssh/known_hosts ~/.ssh/known_hosts.bkp
-    fi
-    ssh-keyscan -H $1 >> ~/.ssh/known_hosts
-    ssh -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"${salt_master_ip}" 'sudo bash -s' < salt-master-accept-minion-key.sh
-    if [[ $? -ne 0 ]]; then
-        echo -e "$TAB_PREFIX Failed to accept salt minion key with minion_id ${minion_id} on salt master ${salt_master}. Please find detailed log above."
-        if [ -f ~/.ssh/known_hosts.bkp ]; then
-            mv ~/.ssh/known_hosts.bkp ~/.ssh/known_hosts
-        fi
-        rm salt-master-accept-minion-key.sh
-        return
-        #exit 1
-    fi
-    echo "$TAB_PREFIX Done accepting salt minion key with minion_id ${minion_id}."
-    if [ -f ~/.ssh/known_hosts.bkp ]; then
-        mv ~/.ssh/known_hosts.bkp ~/.ssh/known_hosts
-    fi
-    rm salt-master-accept-minion-key.sh
-    long-sleep 30
-}
 
 function tessnet-minions-bootstrap {
     for (( c=0; c<${NUM_NODES}; c++ ))
@@ -911,7 +872,7 @@ function tessnet-boot-master {
         nova show ${MASTER_NAME} > $details
         export MASTER_IP=$(cat $KUBE_TEMP/${MASTER_NAME}-tess.conf | python -c 'import json,sys;print json.load(sys.stdin)["compute"]["public_ip"]')
         if [[ -z "${MASTER_IP}" ]]; then
-          if (( attempt > 5 )); then
+          if (( attempt > 10 )); then
             echo -e "${color_red} Failed to retrieve master IP. ${color_norm}"
             exit 2
           fi
@@ -991,8 +952,38 @@ function tessnet-boot-master {
         echo -e "${color_green}\tFQDN: $SALT_MASTER_FQDN ${color_norm}\n"
     fi
     master-attach-volume ${MASTER_NAME}
-    long-sleep 90
-    accept-minion-key ${SALT_MASTER_PUBLIC_IP} ${SALT_MASTER_FQDN} ${MASTER_FQDN}
+
+    #issue 877 enable salt master auto-accept with key gpg sign soultion
+    if [ "$SALT_MASTER" = "$MASTER_NAME" ]; then
+        echo -e "${color_yellow}+++ Waiting extra time for salt master being ready  ${color_norm}"
+        local attempt=0
+        while true; do
+          if (( attempt > 15 )); then
+                echo -e "${color_red} Failed to find the salt master public key on swift ${color_norm}"
+                exit 2
+          fi
+          SALT_PUB_SIGN="master_sign.pub"
+          attempt=$(($attempt+1))
+          if ssh -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP" stat "/tmp/${ETCD_KEY}" \> /dev/null 2\>\&1; then
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${CLUSTER_CA}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${APISERVER_KEY}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${APISERVER_CRT}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${ETCD_KEY}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${ETCD_CRT}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${SALT_PRI_KEY}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${SALT_PUB_KEY}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${SALT_PRI_SIGN}" "${KUBE_TEMP}/"
+             scp -o stricthostkeychecking=no -i ~/.ssh/"${SSH_KEY_NAME}" "${MASTER_USER}"@"$MASTER_IP":"/tmp/${SALT_PUB_SIGN}" "${KUBE_TEMP}/"
+             pushd "${KUBE_TEMP}/"
+             upload-credential ${CLUSTER_CA} ${APISERVER_KEY} ${APISERVER_CRT} ${ETCD_KEY} ${ETCD_CRT} ${SALT_PRI_KEY}  ${SALT_PUB_KEY} ${SALT_PRI_SIGN} ${SALT_PUB_SIGN}
+             rm -rf   ${CLUSTER_CA} ${APISERVER_KEY} ${APISERVER_CRT} ${ETCD_KEY} ${ETCD_CRT} ${SALT_PRI_KEY}  ${SALT_PUB_KEY} ${SALT_PRI_SIGN} ${SALT_PUB_SIGN}
+             popd
+             break
+          else
+            sleep 60
+          fi
+        done
+    fi
 }
 
 function tessnet-boot-minions {
@@ -1051,11 +1042,11 @@ function tessnet-boot-minion {
       tessnet update-apikey --apiKeyID=${API_KEY_ID} --ip=${FLOATING_IP} -c ${KUBE_TEMP}/${MINION_NAME}-tess.conf
     fi
 
-    local minion_fqdn=$(cat $KUBE_TEMP/${MINION_NAME}-tess.conf | python -c 'import json,sys;print json.load(sys.stdin)["compute"]["fqdn"]')
-    if [ ! -z $minion_fqdn ]; then
-        long-sleep 90
-        accept-minion-key ${SALT_MASTER_PUBLIC_IP} ${SALT_MASTER_FQDN} ${minion_fqdn}
-    fi
+#    local minion_fqdn=$(cat $KUBE_TEMP/${MINION_NAME}-tess.conf | python -c 'import json,sys;print json.load(sys.stdin)["compute"]["fqdn"]')
+#    if [ ! -z $minion_fqdn ]; then
+#        long-sleep 90
+#        accept-minion-key ${SALT_MASTER_PUBLIC_IP} ${SALT_MASTER_FQDN} ${minion_fqdn}
+#    fi
 }
 
 # This function is vagrant centric; needs to be ported to tess
@@ -1160,9 +1151,18 @@ function print-cluster-info() {
   echo
 }
 
+#issue #804 store api/etcd keys to swift/esam
+function check-cluster-credentials {
+    if ! check-credential-bucket ; then
+       echo -e "${color_red} Kubernetes cluster ${DOMAIN_SUFFIX} bucket already existed in swift. Please 'kube-down' to clear old credentials."
+       exit 1
+    fi
+}
+
 # Instantiate a kubernetes cluster
 function kube-up {
   welcome
+  check-cluster-credentials
   download-tessnet-binary $@
   find-release-tars
   upload-server-tars $@
@@ -1251,7 +1251,7 @@ function create-dnsrecords {
 
 # Delete a kubernetes cluster
 function kube-down {
-  for master in `nova list |  cut -d "|" -f3 | grep kubernetes-master`
+  for master in `nova list |  cut -d "|" -f3 | grep ${MASTER_NAME}`
   do
     master-detach-volume $master $@
   done
@@ -1269,6 +1269,8 @@ function kube-down {
       break
     fi
   done
+  # issue #694 for store keys to esam and swift.
+  delete-credential
 }
 
 # Update a kubernetes cluster with latest source
@@ -1597,7 +1599,7 @@ function validate-apiserver-vip {
     long-sleep 30
     # Download kubectl from swift?
 
-    chmod 755 kubectl
+#    chmod 755 kubectl
     pwd=`pwd`
     export PATH=$PATH:$pwd
     server="http://$SALT_MASTER_PUBLIC_IP:8080"

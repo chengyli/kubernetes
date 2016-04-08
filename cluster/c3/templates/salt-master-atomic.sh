@@ -60,19 +60,41 @@ mount-etcd
 
 echo "root:password" | chpasswd
 
+set-salt-autoaccept
+
 if [ "$SALT_MASTER" = "$MASTER_NAME" ];
 then
   printf '%s\n\n%s\n  %s\n' 'extension_modules: /srv/modules' 'ext_pillar:' '- custom_pillar:' >> /etc/salt/master
   chkconfig salt-master on
+  # issue 877 enable salt master key gpg sign
+  printf 'master_sign_pubkey: True' >> /etc/salt/master
   systemctl restart salt-master
   systemctl restart salt-api
+  #issue 802 store salt keys. wait for salt key generate
+  sleep 30
 fi
 
+# issue 877 enable salt master key gpg sign
+printf 'verify_master_pubkey_sign: True' >> /etc/salt/minion
 chkconfig salt-minion on
 systemctl restart salt-minion
 
+#issue 802 store salt keys. cp to tmp, and bootstrap can get them to upload
+sleep 3
+if [ -f /etc/salt/pki/master/master_sign.pub -a -f /etc/salt/pki/master/master.pub ]; then
+   cp /etc/salt/pki/master/master_sign.pub /etc/salt/pki/minion/ >/dev/null
+   cp /etc/salt/pki/master/master.pub /etc/salt/pki/minion/ >/dev/null
+else
+   eval  "${SALT_PUB_KEY_CMD}"
+   eval  "${SALT_SIGN_KEY_CMD}"
+fi
+
+systemctl restart salt-minion
 # Wait a few minutes and trigger another Salt run to better recover from
 # any transient errors.
 echo "Sleeping 180"
 sleep 180
 salt-call state.highstate || true
+if [ -f /etc/salt/pki/master/master_sign.pub -a -f /etc/salt/pki/master/master.pub ]; then
+   cp-credentials
+fi

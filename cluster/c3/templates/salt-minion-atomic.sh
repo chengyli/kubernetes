@@ -33,9 +33,17 @@ if [ ! "$(cat /etc/hosts | grep $MASTER_FQDN)" ]; then
   echo "$MASTER_IP $MASTER_FQDN" >> /etc/hosts
 fi
 
+# issue 877 enable salt master key gpg sign
+printf 'verify_master_pubkey_sign: True' >> /etc/salt/minion
 systemctl restart salt-minion
 # set auto start salt after vm reboot
 chkconfig salt-minion on
+
+eval  "${SALT_PUB_KEY_CMD}"
+eval  "${SALT_SIGN_KEY_CMD}"
+
+sleep 30
+systemctl restart salt-minion
 
 # Wait a few minutes and trigger another Salt run to better recover from
 # any transient errors.

@@ -40,7 +40,7 @@ mount-config-driver() {
 }
 
 populate-master-fqdn() {
-  MASTER_FQDN=$1
+  local -r MASTER_FQDN=$1
   # Prepopulate the name of the Master
   mkdir -p /etc/salt/minion.d
   # This the salt-master
@@ -185,6 +185,33 @@ EOF
   docker_opts: '$(echo "$DOCKER_OPTS" | sed -e "s/'/''/g")'
 EOF
   fi
+}
+
+cp-credentials() {
+  #issue 802 store salt keys. cp to tmp, and bootstrap can get them to upload
+  cp /etc/salt/pki/master/master.pem /tmp/
+  cp /etc/salt/pki/master/master.pub /tmp/
+  cp /etc/salt/pki/master/master_sign.pem /tmp/
+  cp /etc/salt/pki/master/master_sign.pub /tmp
+  cp /etc/ssl/kubernetes/server.crt /tmp/
+  cp /etc/ssl/kubernetes/server.key /tmp/
+  cp  /etc/ssl/kubernetes/ca.crt /tmp/
+  cp  /etc/ssl/kubernetes/etcd.crt /tmp/
+  cp  /etc/ssl/kubernetes/etcd.key /tmp/
+  pushd /tmp/
+  chmod 644 *.pem *.crt *.key
+  popd
+}
+
+set-salt-autoaccept() {
+# issue 877 enable salt master key gpg sign
+# Auto accept all keys from minions that try to join
+mkdir -p /etc/salt/master.d
+cat <<EOF >/etc/salt/master.d/auto-accept.conf
+# TODO(qiuyu): open_mode needs to be reviewed
+open_mode: True
+auto_accept: True
+EOF
 }
 
 config-atomic-network() {

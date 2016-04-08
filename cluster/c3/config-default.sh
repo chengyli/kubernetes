@@ -17,6 +17,14 @@
 ## Contains configuration values for interacting with the Vagrant cluster
 
 # Common settings for both master and minions
+SSH_KEY_NAME="${SSH_KEY_NAME-id_kubernetes}"
+#847 enable namespace.n.tess.io
+#Tess cluster namespace
+CLUSTER_DNS_VIEW="ebay-cloud"
+CLUSTER_DNS_ZONE="tess.io"
+TESS_NAMESPACE="${TESS_NAMESPACE-tess}"
+CLUSTER_NO="${CLUSTER_NO-1}"
+CLUSTER_DOMAIN="${TESS_NAMESPACE}.${CLUSTER_NO}"
 ATOMIC_NODE="${ATOMIC_NODE-false}"
 export ATOMIC_NODE
 
@@ -149,16 +157,27 @@ else
     OS_TENANT_NAME=$(cat $project_details | awk '/ name / {print $4}')
     rm -R $project_details
 fi
-
+##issue #804 store api/etcd keys to swift/esam
+#secrete files
+CLUSTER_CA="ca.crt"
+APISERVER_KEY="server.key"
+APISERVER_CRT="server.crt"
+ETCD_KEY="etcd.key"
+ETCD_CRT="etcd.crt"
+SALT_PRI_KEY="master.pem"
+SALT_PUB_KEY="master.pub"
+SALT_PRI_SIGN="master_sign.pem"
+SALT_PUB_SIGN="master_sign.pub"
 export OS_TENANT_NAME=${OS_TENANT_NAME}
 
+SSH_KEY_NAME=`echo "id_kubernetes.${OS_TENANT_NAME}.${CLUSTER_DOMAIN}" | tr '.' '-' `
 DOMAIN_SUFFIX="${VPC}.ebayc3.com"
-
+CLUSTER_DOMAIN_SUFFIX="${CLUSTER_DOMAIN}.${CLUSTER_DNS_ZONE}"
 # Specific SSH key to be used for this cluster
 SSH_KEY_NAME=${SSH_KEY_NAME-"id_kubernetes_${OS_TENANT_NAME}"}
-echo "SSH_KEY_NAME=${SSH_KEY_NAME}"}
+echo "SSH_KEY_NAME=${SSH_KEY_NAME}"
 
-export CLUSTER_EXTERNAL_DNS_NAME="${CLUSTER_EXTERNAL_DNS_NAME-unspecified}"
+export CLUSTER_APISERVER_DNS_NAME="${CLUSTER_APISERVER_DNS_NAME-apiserver.${CLUSTER_DOMAIN_SUFFIX}}"
 #(todo): generate one dynamically, if not specified
 
 # Cinder volume name for etcd
@@ -208,6 +227,8 @@ fi
 export ENABLE_ETCD_CINDER_VOLUME="true"
 export SALT_MASTER=""
 export SALT_MASTER_FQDN=""
+
+export SALT_MINION_PKI="/etc/salt/pki/minion/"
 
 # Do not over ride this. This is set during master flex
 export MASTER_FLEX="false"
