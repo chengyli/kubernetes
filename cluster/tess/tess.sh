@@ -42,7 +42,7 @@ function tess::scp () {
 function tess::ssh () {
 	local ssh_cmd=${SSH:-"ssh ${SSH_CONFIG:=-F $HOME/.ssh/${TESS_CLUSTER:-config}}"}
 	echo ">> $ssh_cmd $*"
-	eval "$ssh_cmd $@"
+	$ssh_cmd $@
 
 }
 
@@ -73,6 +73,8 @@ function tess::restart-kubelet () {
 		&& sudo cp ~/kubelet /usr/local/bin/kubelet \
 		&& sudo systemctl start kubelet'"
 }
+
+
 
 function tess::scp-kube-binary () {
 	local binary=$1
@@ -105,31 +107,23 @@ function tess::scp-apiserver () {
 	tess::scp-kube-binary kube-apiserver "${servers[@]}"
 }
 
-function tess::install-apiserver () {
+# modifies the manifest file to load the apiserver binary from the host path. For
+# testing out the local changes easily, handy with sync.sh.
+# todo (fix the docker version on the template to be the latest)
+function tess::restart-api () {
 	target_host=$1
 	if [[ -z $target_host ]]; then
 		echo "need the name of host to restart the kubelet process on"
 		exit 1
 	fi
-	read -r -d '' cmds << 'EOF'
-'
-	tstamp=$(date +%Y-%m-%dT%H:%M:%S) &&
 
-	sudo cp /srv/salt/kube-bins/kube-apiserver.tar{,-$tstamp}
-	sudo cp /srv/salt/kube-bins/kube-apiserver.docker_tag{,-$tstamp}
-
-	sudo cp ~/kube-apiserver.tar /srv/salt/kube-bins/kube-apiserver.tar
-	sudo cp ~/kube-apiserver.docker_tag /srv/salt/kube-bins/kube-apiserver.docker_tag
-
-	read -r version < /srv/salt/kube-bins/kube-apiserver.docker_tag
-
-	echo "version $version"
-	sudo sed -i "s/\(kube-apiserver_docker_tag: \).*/\1 $version/" /srv/pillar/docker-images.sls
-
-	sudo /opt/kubernetes/helpers/services bounce kube-master-addons
-'
-EOF
-	tess::ssh "$target_host" -t "$cmds"
+	tess scp _output/local/bin/linux/amd64/kube-apiserver cluster/tess/debug/kube-apiserver.manifest -- "$target_host:"
+	tess::ssh -T $target_host << 'EOSSH'
+	 sudo rm -f /etc/kubernetes/manifests/kube-apiserver.manifest
+	 sudo docker ps | grep kube-api | awk '{print $1}' | sudo xargs -r docker kill
+	 sudo cp ~/kube-apiserver /srv/kubernetes/temp/
+	 sudo cp ~/kube-apiserver.manifest /etc/kubernetes/manifests/
+EOSSH
 }
 
 function tess::scp-controller-manager () {
@@ -178,9 +172,9 @@ EOF
 }
 
 function tess::clone-shallow () {
-    : ${BRANCH:='tess-master'}
-    # --single-branch is redundant with --depth, but just in case :)
-    git clone --single-branch --depth 1 --branch $BRANCH git@github.corp.ebay.com:tess/kubernetes.git
+	: ${BRANCH:='tess-master'}
+	# --single-branch is redundant with --depth, but just in case :)
+	git clone --single-branch --depth 1 --branch $BRANCH git@github.corp.ebay.com:tess/kubernetes.git
 }
 
 # --- Invoke functions -----

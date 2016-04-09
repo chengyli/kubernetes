@@ -1,0 +1,171 @@
+
+  # the ca certificate for etcd requires another parameter
+
+  
+    
+    
+# test_args has to be kept at the end, so they'll overwrite any prior configuration
+{
+"apiVersion": "v1",
+"kind": "Pod",
+"metadata": {
+    "name":"kube-apiserver",
+    "labels": {
+        "name": "kube-apiserver"
+    }
+},
+"spec":{
+"hostNetwork": true,
+"containers":[
+    {
+    "name": "kube-apiserver",
+    "image": "gcr.io/google_containers/kube-apiserver:78ebfac622482b1c4d7cf775a728293b",
+    "resources": {
+      "limits": {
+        "cpu": "200m"
+      }
+    },
+    "command": [
+                 "/bin/sh",
+                 "-c",
+                 "/srv/kubernetes/temp/kube-apiserver --v=10 --insecure-bind-address=0.0.0.0 \
+                 --etcd_servers=https://kubernetes-master-1-8436.tess.1.tess.io:4001 \
+                 --cloud_provider=openstack --cloud_config=/etc/sysconfig/openstack.rc \
+                 --runtime_config=api/v1 --admission_control=ServiceAccount,ResourceQuota,LimitRanger \
+                 --service-cluster-ip-range=192.168.0.0/16 --client_ca_file=/etc/ssl/kubernetes/ca.crt \
+                 --max_requests_inflight=4000  --tls_cert_file=/etc/ssl/kubernetes/server.crt  \
+                 --tls_private_key_file=/etc/ssl/kubernetes/server.key \
+                 --service_account_key_file=/etc/ssl/kubernetes/server.key  --secure_port=6443 \
+                 --token_auth_file=/srv/kubernetes/known_tokens.csv \
+                 --keystone_url=https://os-identity.vip.ebayc3.com:5443/v2.0 \
+                 --authorization-mode=Keystone --authorization_policy_file=/etc/sysconfig/keystoneauthorization.json \
+                 --keystone_auth_config_file=/etc/sysconfig/keystoneauthorization.json \
+                 --etcd-cafile=/etc/ssl/kubernetes/ca.crt --allow_privileged=False \
+                  1>>/var/log/kube-apiserver.log 2>&1"
+               ],
+    "livenessProbe": {
+      "httpGet": {
+        "path": "/healthz",
+        "port": 8080
+      },
+      "initialDelaySeconds": 15,
+      "timeoutSeconds": 15
+    },
+    "ports":[
+      { "name": "https",
+        "containerPort": 6443,
+        "hostPort": 6443},{
+       "name": "http",
+        "containerPort": 7080,
+        "hostPort": 7080},{
+       "name": "local",
+        "containerPort": 8080,
+        "hostPort": 8080}
+        ],
+    "volumeMounts": [
+        { "name": "instanceid",
+        "mountPath": "/var/lib/cloud/data/instance-id",
+        "readOnly": true},
+        { "name": "etchosts",
+        "mountPath": "/etc/hosts",
+        "readOnly": true},
+        { "name": "srvkube",
+        "mountPath": "/srv/kubernetes",
+        "readOnly": true},
+        { "name": "logfile",
+        "mountPath": "/var/log/kube-apiserver.log",
+        "readOnly": false},
+        { "name": "etcssl",
+        "mountPath": "/etc/ssl",
+        "readOnly": true},
+        { "name": "usrsharessl",
+        "mountPath": "/usr/share/ssl",
+        "readOnly": true},
+        { "name": "varssl",
+        "mountPath": "/var/ssl",
+        "readOnly": true},
+        { "name": "usrssl",
+        "mountPath": "/usr/ssl",
+        "readOnly": true},
+        { "name": "usrlibssl",
+        "mountPath": "/usr/lib/ssl",
+        "readOnly": true},
+        { "name": "usrlocalopenssl",
+        "mountPath": "/usr/local/openssl",
+        "readOnly": true},
+        { "name": "etcopenssl",
+        "mountPath": "/etc/openssl",
+        "readOnly": true},
+        { "name": "etcpkitls",
+        "mountPath": "/etc/pki",
+        "readOnly": true},
+        { "name": "config",
+         "mountPath": "/etc/sysconfig",
+         "readOnly": true}
+      ]
+    }
+],
+"volumes":[
+  { "name": "instanceid",
+    "hostPath": {
+        "path": "/var/lib/cloud/data/instance-id"}
+  },
+  { "name": "etchosts",
+    "hostPath": {
+        "path": "/etc/hosts"}
+  },
+  { "name": "srvkube",
+      "hostPath": {
+          "path": "/srv/kubernetes"}
+  },
+  { "name": "logfile",
+    "hostPath": {
+        "path": "/var/log/kube-apiserver.log"}
+  },
+  { "name": "etcssl",
+    "hostPath": {
+        "path": "/etc/ssl"}
+  },
+  { "name": "usrsharessl",
+    "hostPath": {
+
+        "path": "/usr/share/ssl"
+
+    }
+  },
+  { "name": "varssl",
+    "hostPath": {
+        "path": "/var/ssl"}
+  },
+  { "name": "usrssl",
+    "hostPath": {
+
+        "path": "/usr/ssl"
+
+    }
+  },
+  { "name": "usrlibssl",
+    "hostPath": {
+
+        "path": "/usr/lib/ssl"
+
+    }
+  },
+  { "name": "usrlocalopenssl",
+    "hostPath": {
+        "path": "/usr/local/openssl"}
+  },
+  { "name": "etcopenssl",
+    "hostPath": {
+        "path": "/etc/openssl"}
+  },
+  { "name": "etcpkitls",
+    "hostPath": {
+        "path": "/etc/pki"}
+  },
+  { "name": "config",
+    "hostPath": {
+        "path": "/etc/sysconfig"}
+  }
+]
+}}
