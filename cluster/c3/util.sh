@@ -338,7 +338,7 @@ function upload-server-tars() {
   SERVER_BINARY_TAR_URL=
   SALT_TAR_URL=
 
-  local skipUploadTars=false
+  local skipUploadTars=${SKIP_UPLOAD_TARS:-false}
   for arg in $@
   do
     if [[ ${arg} == "--skip-upload-tars=true" ]]
