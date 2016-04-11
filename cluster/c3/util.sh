@@ -1308,7 +1308,7 @@ function kube-push {
 
   (
     echo "#! /bin/bash"
-    echo "cd /"
+    echo "cd /tmp"
     echo "echo Executing configuration"
     echo "readonly SERVER_BINARY_TAR_URL='${SERVER_BINARY_TAR_URL}'"
     echo "readonly SALT_TAR_URL='${SALT_TAR_URL}'"
@@ -1383,7 +1383,7 @@ function kube-push-scp {
 
   (
     echo "#! /bin/bash"
-    echo "cd /"
+    echo "cd /tmp"
     echo "echo Executing configuration"
     echo "readonly SERVER_BINARY_TAR_URL='${SERVER_BINARY_TAR}'"
     echo "readonly SALT_TAR_URL='${SALT_TAR}'"
