@@ -18,8 +18,6 @@ echo "Adding $SALT_MASTER_FQDN to hosts file"
 echo "$SALT_MASTER_PUBLIC_IP $SALT_MASTER_FQDN" >> /etc/hosts
 mount-config-driver
 
-config-atomic-network
-
 populate-master-fqdn
 
 gen-openstack-rc

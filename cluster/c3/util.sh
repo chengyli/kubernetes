@@ -490,7 +490,7 @@ function generate-docker-cidr {
     if [[ $MASK -eq 24 ]] ; then
         local ip=`echo $docker_cidr | awk -F "/" '{print $1}'`
         IFS=. read -r i1 i2 i3 i4 <<< "$ip";
-        local master_docker_cidr=`printf "%d.%d.%d.128/27" $i1 $i2 $i3`;
+        local master_docker_cidr=`printf "%d.%d.%d.160/27" $i1 $i2 $i3`;
         OBR0_GATEWAY=`printf "%d.%d.%d.1" $i1 $i2 $i3`;
         #echo $OBR0_GATEWAY
     else
@@ -667,7 +667,7 @@ function create-provision-script-for-minion {
     if [[ $mask -eq 24 ]] ; then
         ip=`echo $MINION_SUBNET | awk -F "/" '{print $1}'`
         IFS=. read -r i1 i2 i3 i4 <<< "$ip";
-        DOCKER_FIXED_SUBNET=`printf "%d.%d.%d.128/27" $i1 $i2 $i3`;
+        DOCKER_FIXED_SUBNET=`printf "%d.%d.%d.160/27" $i1 $i2 $i3`;
         OBR0_GATEWAY=`printf "%d.%d.%d.1" $i1 $i2 $i3`;
     fi
 
@@ -1021,7 +1021,7 @@ function tessnet-boot-minion {
     if [[ $MASK -eq 24 ]]; then
         local ip=`echo $MINION_SUBNET | awk -F "/" '{print $1}'`
         IFS=. read -r i1 i2 i3 i4 <<< "$ip";
-        local CIDR=`printf "%d.%d.%d.128/27" $i1 $i2 $i3`;
+        local CIDR=`printf "%d.%d.%d.160/27" $i1 $i2 $i3`;
     else
         echo -e "${color_red} Failed to reserve IPs for pods for the minion. We only support /24 networks to master and nodes now. ${color_norm}"
         exit 1
