@@ -65,7 +65,7 @@ then
   printf '%s\n\n%s\n  %s\n' 'extension_modules: /srv/modules' 'ext_pillar:' '- custom_pillar:' >> /etc/salt/master
   chkconfig salt-master on
   # issue 877 enable salt master key gpg sign
-  printf 'master_sign_pubkey: True' >> /etc/salt/master
+  printf 'master_sign_pubkey: True\n' >> /etc/salt/master
   systemctl restart salt-master
   systemctl restart salt-api
   #issue 802 store salt keys. wait for salt key generate
@@ -73,7 +73,7 @@ then
 fi
 
 # issue 877 enable salt master key gpg sign
-printf 'verify_master_pubkey_sign: True' >> /etc/salt/minion
+printf 'verify_master_pubkey_sign: True\n' >> /etc/salt/minion
 chkconfig salt-minion on
 systemctl restart salt-minion
 
