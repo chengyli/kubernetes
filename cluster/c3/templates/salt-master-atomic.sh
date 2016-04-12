@@ -34,8 +34,6 @@ reset-master-password
 
 mount-config-driver
 
-config-atomic-network
-
 populate-master-fqdn ${MASTER_FQDN}
 
 gen-openstack-rc master
