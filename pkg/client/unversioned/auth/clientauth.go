@@ -81,6 +81,7 @@ type Info struct {
 	KeyFile     string
 	BearerToken string
 	Insecure    *bool
+	Host        string
 }
 
 // LoadFromFile parses an Info object from a file path.
@@ -112,6 +113,7 @@ func (info Info) MergeWithConfig(c restclient.Config) (restclient.Config, error)
 	config.CertFile = info.CertFile
 	config.KeyFile = info.KeyFile
 	config.BearerToken = info.BearerToken
+	config.Host = info.Host
 	if info.Insecure != nil {
 		config.Insecure = *info.Insecure
 	}
