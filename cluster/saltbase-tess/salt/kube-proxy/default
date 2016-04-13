@@ -4,7 +4,8 @@
 {% endif -%}
 
 {% set kubeconfig = "--kubeconfig=/var/lib/kube-proxy/kubeconfig" -%}
+{% set masquerade_all = "--masquerade-all=true" -%}
 
 {% set api_servers_with_port = "--master=" + pillar['api_servers_with_port'] -%}
 
-DAEMON_ARGS="{{daemon_args}} {{api_servers_with_port}} {{kubeconfig}} {{pillar['log_level']}}"
+DAEMON_ARGS="{{daemon_args}} {{api_servers_with_port}} {{masquerade_all}} {{kubeconfig}} {{pillar['log_level']}}"
