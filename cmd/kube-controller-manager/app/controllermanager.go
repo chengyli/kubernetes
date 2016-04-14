@@ -183,9 +183,16 @@ func Run(s *options.CMServer) error {
 }
 
 func StartControllers(s *options.CMServer, kubeClient *client.Client, kubeconfig *restclient.Config, stop <-chan struct{}) error {
-	go endpointcontroller.NewEndpointController(clientset.NewForConfigOrDie(restclient.AddUserAgent(kubeconfig, "endpoint-controller")), ResyncPeriod(s)).
-		Run(s.ConcurrentEndpointSyncs, wait.NeverStop)
 
+	cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
+	if err != nil {
+		glog.Fatalf("Cloud provider could not be initialized: %v", err)
+	}
+	if cloud != nil {
+		balancer, _ := cloud.LoadBalancer()
+		go endpointcontroller.NewEndpointController(clientset.NewForConfigOrDie(restclient.AddUserAgent(kubeconfig, "endpoint-controller")), balancer, s.ClusterName, ResyncPeriod(s)).
+			Run(s.ConcurrentEndpointSyncs, wait.NeverStop)
+	}
 	go replicationcontroller.NewReplicationManager(
 		clientset.NewForConfigOrDie(restclient.AddUserAgent(kubeconfig, "replication-controller")),
 		ResyncPeriod(s),
@@ -196,11 +203,6 @@ func StartControllers(s *options.CMServer, kubeClient *client.Client, kubeconfig
 	if s.TerminatedPodGCThreshold > 0 {
 		go gc.New(clientset.NewForConfigOrDie(restclient.AddUserAgent(kubeconfig, "garbage-collector")), ResyncPeriod(s), s.TerminatedPodGCThreshold).
 			Run(wait.NeverStop)
-	}
-
-	cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
-	if err != nil {
-		glog.Fatalf("Cloud provider could not be initialized: %v", err)
 	}
 
 	// this cidr has been validated already

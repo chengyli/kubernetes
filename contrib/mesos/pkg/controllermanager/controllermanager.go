@@ -345,7 +345,7 @@ func (s *CMServer) createEndpointController(client *clientset.Clientset) kmendpo
 		return kmendpoint.NewEndpointController(client)
 	}
 	glog.V(2).Infof("Creating podIP:containerPort endpoint controller")
-	stockEndpointController := endpointcontroller.NewEndpointController(client, s.resyncPeriod)
+	stockEndpointController := endpointcontroller.NewEndpointController(client, nil, "", s.resyncPeriod)
 	return stockEndpointController
 }
 

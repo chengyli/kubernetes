@@ -193,7 +193,7 @@ func startComponents(firstManifestURL, secondManifestURL string) (string, string
 	scheduler.New(schedulerConfig).Run()
 
 	// ensure the service endpoints are sync'd several times within the window that the integration tests wait
-	go endpointcontroller.NewEndpointController(clientset, controller.NoResyncPeriodFunc).
+	go endpointcontroller.NewEndpointController(clientset, nil, "", controller.NoResyncPeriodFunc).
 		Run(3, wait.NeverStop)
 
 	// TODO: Write an integration test for the replication controllers watch.
