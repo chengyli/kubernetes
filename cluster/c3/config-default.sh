@@ -33,7 +33,7 @@ lvs01_SWIFT_ENDPOINT="https://os-r-object.vip.lvs.ebayc3.com/v1"
 
 # SLC01 Fedora Cloud Basae 21 image
 if [ $ATOMIC_NODE == "true" ]; then
-  slc01_KUBE_IMAGE="28c876aa-7b4e-4772-bc72-195235a94f7c"
+  slc01_KUBE_IMAGE="9a1ca8da-78a8-477a-a763-0c650d50a47f"
 else
   slc01_KUBE_IMAGE="e2dfa3a7-2ea0-46e9-be80-227719eca7d5"
 fi
