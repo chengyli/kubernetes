@@ -113,6 +113,11 @@ func (f *fakeVolumeHost) GetHostName() string {
 	return "fakeHostName"
 }
 
+// Returns the nodename of the host kubelet is running on
+func (f *fakeVolumeHost) GetNodeName() string {
+	return "fakeNodeName"
+}
+
 func ProbeVolumePlugins(config VolumeConfig) []VolumePlugin {
 	if _, ok := config.OtherAttributes["fake-property"]; ok {
 		return []VolumePlugin{
