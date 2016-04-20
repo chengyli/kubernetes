@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"k8s.io/kubernetes/pkg/client/record"
 	unversionedcore "k8s.io/kubernetes/pkg/client/typed/generated/core/unversioned"
 	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/cloudprovider/providers/openstack"
 	"k8s.io/kubernetes/pkg/fields"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util/runtime"
@@ -344,6 +346,9 @@ func (s *ServiceController) createLoadBalancerIfNeeded(namespacedName types.Name
 
 		err := s.createLoadBalancer(service, namespacedName)
 		if err != nil {
+			if strings.HasPrefix(err.Error(), openstack.ErrAttrNotFound.Error()) {
+				return fmt.Errorf("failed to create external load balancer for service %s: %v", namespacedName, err), notRetryable
+			}
 			return fmt.Errorf("Failed to create load balancer for service %s: %v", namespacedName, err), retryable
 		}
 		s.eventRecorder.Event(service, api.EventTypeNormal, "CreatedLoadBalancer", "Created load balancer")

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"encoding/json"
+	"fmt"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/api/endpoints"
@@ -31,6 +32,7 @@ import (
 	utilpod "k8s.io/kubernetes/pkg/api/pod"
 	"k8s.io/kubernetes/pkg/client/cache"
 	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/controller/framework"
 	"k8s.io/kubernetes/pkg/labels"
@@ -58,10 +60,12 @@ var (
 )
 
 // NewEndpointController returns a new *EndpointController.
-func NewEndpointController(client *clientset.Clientset, resyncPeriod controller.ResyncPeriodFunc) *EndpointController {
+func NewEndpointController(client *clientset.Clientset, balancer cloudprovider.LoadBalancer, clusterName string, resyncPeriod controller.ResyncPeriodFunc) *EndpointController {
 	e := &EndpointController{
-		client: client,
-		queue:  workqueue.New(),
+		client:      client,
+		queue:       workqueue.New(),
+		balancer:    balancer,
+		clusterName: clusterName,
 	}
 
 	e.serviceStore.Store, e.serviceController = framework.NewInformer(
@@ -128,6 +132,8 @@ type EndpointController struct {
 	// podStoreSynced returns true if the pod store has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
 	podStoreSynced func() bool
+	balancer       cloudprovider.LoadBalancer
+	clusterName    string
 }
 
 // Runs e; will not return until stopCh is closed. workers determines how many
@@ -435,14 +441,29 @@ func (e *EndpointController) syncService(key string) {
 	if len(currentEndpoints.ResourceVersion) == 0 {
 		// No previous endpoints, create them
 		_, err = e.client.Endpoints(service.Namespace).Create(newEndpoints)
+		glog.V(5).Infof("endpoints are not equal for %s/%s, created new ones", service.Namespace, service.Name)
+
 	} else {
 		// Pre-existing
 		_, err = e.client.Endpoints(service.Namespace).Update(newEndpoints)
+		glog.V(5).Infof("endpoints are not equal for %s/%s, updated existing ones", service.Namespace, service.Name)
+	}
+	if service.Spec.Type == api.ServiceTypeLoadBalancer {
+		glog.V(2).Infof("endpoints are not equal for %s/%s, updating load balancer", service.Namespace, service.Name)
+		err = e.updateTCPLoadBalancer(cloudprovider.GetLoadBalancerName(service), newEndpoints)
 	}
 	if err != nil {
 		glog.Errorf("Error updating endpoints: %v", err)
 		e.queue.Add(key) // Retry
 	}
+}
+
+func (e *EndpointController) updateTCPLoadBalancer(lbname string, endpoints *api.Endpoints) error {
+	//region and hosts are not used in openstack
+	if e.balancer == nil {
+		return fmt.Errorf("Endpoint controller incorrectly initialized")
+	}
+	return e.balancer.UpdateLoadBalancer(lbname, "", nil)
 }
 
 func verifyPodHostNamesAreEqual(newPodHostNames string, oldAnnotations map[string]string) bool {
