@@ -21,6 +21,7 @@ package mount
 import (
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/util/exec"
+	"path/filepath"
 )
 
 type Interface interface {
@@ -85,8 +86,9 @@ func GetMountRefs(mounter Interface, mountPath string) ([]string, error) {
 
 	// Find the device name.
 	deviceName := ""
+	slTarget, _ := filepath.EvalSymlinks(mountPath)
 	for i := range mps {
-		if mps[i].Path == mountPath {
+		if mps[i].Path == slTarget {
 			deviceName = mps[i].Device
 			break
 		}
@@ -98,7 +100,7 @@ func GetMountRefs(mounter Interface, mountPath string) ([]string, error) {
 		glog.Warningf("could not determine device for path: %q", mountPath)
 	} else {
 		for i := range mps {
-			if mps[i].Device == deviceName && mps[i].Path != mountPath {
+			if mps[i].Device == deviceName && mps[i].Path != slTarget {
 				refs = append(refs, mps[i].Path)
 			}
 		}
