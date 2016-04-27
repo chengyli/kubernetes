@@ -187,6 +187,8 @@ type VolumeSource struct {
 	// TODO(jonesdl) We need to restrict who can use host directory mounts and who can/can not
 	// mount host directories as read/write.
 	HostPath *HostPathVolumeSource `json:"hostPath,omitempty"`
+	// LocalDisk
+	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty"`
 	// EmptyDir represents a temporary directory that shares a pod's lifetime.
 	EmptyDir *EmptyDirVolumeSource `json:"emptyDir,omitempty"`
 	// GCEPersistentDisk represents a GCE Disk resource that is attached to a
@@ -249,6 +251,8 @@ type PersistentVolumeSource struct {
 	// This is useful for single-node development and testing only!
 	// On-host storage is not supported in any way and WILL NOT WORK in a multi-node cluster.
 	HostPath *HostPathVolumeSource `json:"hostPath,omitempty"`
+	//local disk
+	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty"`
 	// Glusterfs represents a Glusterfs volume that is attached to a host and exposed to the pod
 	Glusterfs *GlusterfsVolumeSource `json:"glusterfs,omitempty"`
 	// NFS represents an NFS mount on the host that shares a pod's lifetime
@@ -435,6 +439,9 @@ type HostPathVolumeSource struct {
 	Path string `json:"path"`
 }
 
+type LocalDiskVolumeSource struct {
+	Path string `json:"path"`
+}
 // Represents an empty directory for a pod.
 // Empty directory volumes support ownership management and SELinux relabeling.
 type EmptyDirVolumeSource struct {

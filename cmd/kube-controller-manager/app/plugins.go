@@ -44,6 +44,7 @@ import (
 	"k8s.io/kubernetes/pkg/volume/vsphere_volume"
 
 	"github.com/golang/glog"
+	"k8s.io/kubernetes/pkg/volume/local_disk"
 )
 
 // ProbeAttachableVolumePlugins collects all volume plugins for the attach/
@@ -85,6 +86,16 @@ func ProbeRecyclableVolumePlugins(config componentconfig.VolumeConfiguration) []
 	}
 	allPlugins = append(allPlugins, host_path.ProbeVolumePlugins(hostPathConfig)...)
 
+	localDiskConfig := volume.VolumeConfig{
+		RecyclerMinimumTimeout:   config.PersistentVolumeRecyclerConfiguration.MinimumTimeoutLocalDisk,
+		RecyclerTimeoutIncrement: config.PersistentVolumeRecyclerConfiguration.IncrementTimeoutLocalDisk,
+		RecyclerPodTemplate:      volume.NewPersistentVolumeRecyclerPodTemplate(),
+	}
+	if err := AttemptToLoadRecycler(config.PersistentVolumeRecyclerConfiguration.PodTemplateFilePathLocalDisk, &localDiskConfig); err != nil {
+		glog.Fatalf("Could not create localdisk recycler pod from file %s: %+v", config.PersistentVolumeRecyclerConfiguration.PodTemplateFilePathHostPath, err)
+	}
+	allPlugins = append(allPlugins, local_disk.ProbeVolumePlugins(localDiskConfig)...)
+
 	nfsConfig := volume.VolumeConfig{
 		RecyclerMinimumTimeout:   int(config.PersistentVolumeRecyclerConfiguration.MinimumTimeoutNFS),
 		RecyclerTimeoutIncrement: int(config.PersistentVolumeRecyclerConfiguration.IncrementTimeoutNFS),
@@ -111,6 +122,8 @@ func NewVolumeProvisioner(cloud cloudprovider.Interface, config componentconfig.
 	switch {
 	case cloud == nil && config.EnableHostPathProvisioning:
 		return getProvisionablePluginFromVolumePlugins(host_path.ProbeVolumePlugins(volume.VolumeConfig{}))
+	case cloud == nil && config.EnableLocalDiskProvisioning:
+		return getProvisionablePluginFromVolumePlugins(local_disk.ProbeVolumePlugins(volume.VolumeConfig{}))
 	case cloud != nil && aws.ProviderName == cloud.ProviderName():
 		return getProvisionablePluginFromVolumePlugins(aws_ebs.ProbeVolumePlugins())
 	case cloud != nil && gce.ProviderName == cloud.ProviderName():
