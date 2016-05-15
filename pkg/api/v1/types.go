@@ -22,6 +22,7 @@ import (
 	"k8s.io/kubernetes/pkg/runtime"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util/intstr"
+	"k8s.io/kubernetes/pkg/api"
 )
 
 // The comments for the structs and fields can be used from go-resful to
@@ -220,6 +221,9 @@ type VolumeSource struct {
 	// TODO(jonesdl) We need to restrict who can use host directory mounts and who can/can not
 	// mount host directories as read/write.
 	HostPath *HostPathVolumeSource `json:"hostPath,omitempty" protobuf:"bytes,1,opt,name=hostPath"`
+	//LocalDisk
+	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty"`
+
 	// EmptyDir represents a temporary directory that shares a pod's lifetime.
 	// More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#emptydir
 	EmptyDir *EmptyDirVolumeSource `json:"emptyDir,omitempty" protobuf:"bytes,2,opt,name=emptyDir"`
@@ -309,6 +313,8 @@ type PersistentVolumeSource struct {
 	// On-host storage is not supported in any way and WILL NOT WORK in a multi-node cluster.
 	// More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath
 	HostPath *HostPathVolumeSource `json:"hostPath,omitempty" protobuf:"bytes,3,opt,name=hostPath"`
+	//LocalDisk
+	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty"`
 	// Glusterfs represents a Glusterfs volume that is attached to a host and
 	// exposed to the pod. Provisioned by an admin.
 	// More info: http://releases.k8s.io/HEAD/examples/glusterfs/README.md
@@ -527,6 +533,11 @@ type HostPathVolumeSource struct {
 	// More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath
 	Path string `json:"path" protobuf:"bytes,1,opt,name=path"`
 }
+
+type LocalDiskVolumeSource struct {
+	Path string `json:"path"`
+}
+
 
 // Represents an empty directory for a pod.
 // Empty directory volumes support ownership management and SELinux relabeling.
