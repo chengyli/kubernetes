@@ -25,6 +25,7 @@ import (
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/volume"
+	"k8s.io/kubernetes/pkg/api/resource"
 )
 
 // This is the primary entrypoint for volume plugins.
@@ -75,6 +76,33 @@ const (
 
 func (plugin *localDiskPlugin) Init(host volume.VolumeHost) error {
 	plugin.host = host
+
+	nodeName := host.GetNodeName()
+	node, err := host.GetKubeClient().Core().Nodes().Get(nodeName)
+	if err != nil {
+		return fmt.Errorf("error getting node %q: %v", nodeName, err)
+	}
+	if node == nil {
+		return fmt.Errorf("no node instance returned for %q", nodeName)
+	}
+
+	node.Status.LDCapacity = api.LocalDiskList{
+		"/vol-pool/localdisk1": resource.MustParse("500G"),
+		"/vol-pool/localdisk2": resource.MustParse("500G"),
+		"/vol-pool/localdisk3": resource.MustParse("500G"),
+		"/vol-pool/localdisk4": resource.MustParse("500G"),
+	}
+
+	node.Status.LDAllocatable = api.LocalDiskList{
+		"/vol-pool/localdisk1": resource.MustParse("500G"),
+		"/vol-pool/localdisk2": resource.MustParse("500G"),
+		"/vol-pool/localdisk3": resource.MustParse("500G"),
+		"/vol-pool/localdisk4": resource.MustParse("500G"),
+	}
+
+
+	host.GetKubeClient().Core().Nodes().UpdateStatus(node)
+
 	return nil
 }
 

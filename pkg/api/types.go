@@ -1976,6 +1976,9 @@ type NodeSystemInfo struct {
 	Architecture string `json:"architecture"`
 }
 
+type DevicePath string
+type LocalDiskList map[DevicePath]resource.Quantity
+
 // NodeStatus is information about the current status of a node.
 type NodeStatus struct {
 	// Capacity represents the total resources of a node.
@@ -1983,6 +1986,8 @@ type NodeStatus struct {
 	// Allocatable represents the resources of a node that are available for scheduling.
 	Allocatable ResourceList `json:"allocatable,omitempty"`
 	// NodePhase is the current lifecycle phase of the node.
+	LDCapacity LocalDiskList `json:"ldcapacity,omitempty"`
+	LDAllocatable LocalDiskList `json:"ldallocatable,omitempty"`
 	Phase NodePhase `json:"phase,omitempty"`
 	// Conditions is an array of current node conditions.
 	Conditions []NodeCondition `json:"conditions,omitempty"`
