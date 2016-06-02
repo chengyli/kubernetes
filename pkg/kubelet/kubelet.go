@@ -2351,6 +2351,33 @@ func (kl *Kubelet) isOutOfDisk() bool {
 	return outOfDockerDisk || outOfRootDisk
 }
 
+func (k1 *Kubelet) isLocalDiskConflict(pods []*api.Pod, pod *api.Pod) bool {
+	var newPodVolPath []string
+	for _, vol := range pod.Spec.Volumes {
+		if vol.VolumeSource.LocalDisk != nil {
+			newPodVolPath = append(newPodVolPath, strings.TrimRight(vol.VolumeSource.LocalDisk.Path, "/"))
+		}
+	}
+	for _, localPod := range pods {
+		if localPod.Name == pod.Name {
+			continue
+		}
+		for _, vol := range localPod.Spec.Volumes {
+			if vol.VolumeSource.LocalDisk != nil {
+				existPath := strings.TrimRight(vol.VolumeSource.LocalDisk.Path, "/")
+				for _, path := range newPodVolPath {
+					if path == existPath {
+						glog.Warningf("old pod %s and new pod %s both require mounting [%s]",
+							pod.Name, localPod.Name, path)
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
 // matchesNodeSelector returns true if pod matches node's labels.
 func (kl *Kubelet) matchesNodeSelector(pod *api.Pod) bool {
 	if kl.standaloneMode {
@@ -2429,6 +2456,9 @@ func (kl *Kubelet) canAdmitPod(pods []*api.Pod, pod *api.Pod) (bool, string, str
 	if kl.isOutOfDisk() {
 		glog.Warningf("Failed to admit pod %v - %s", format.Pod(pod), "predicate fails due to isOutOfDisk")
 		return false, "OutOfDisk", "cannot be started due to lack of disk space."
+	}
+	if kl.isLocalDiskConflict(pods, pod) {
+		return false, "LocalDiskConflict", "cannot be started dueto local disk conflict"
 	}
 
 	return true, "", ""

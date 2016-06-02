@@ -20,13 +20,21 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"bufio"
+	"os/exec"
 
+	"github.com/docker/docker/pkg/mount"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/api/resource"
+	"github.com/golang/glog"
+	"strings"
 )
+
+const LocalDiskConfig = "/etc/sysconfig/localdisk"
+var MountPoint string = "/var/vol-pool/localdisk%d"
 
 // This is the primary entrypoint for volume plugins.
 // The volumeConfig arg provides the ability to configure volume behavior.  It is implemented as a pointer to allow nils.
@@ -74,34 +82,137 @@ const (
 	localDiskPluginName = "kubernetes.io/host-path"
 )
 
-func (plugin *localDiskPlugin) Init(host volume.VolumeHost) error {
-	plugin.host = host
+func (plugin *localDiskPlugin) initLocalDisk() {
+	if plugin.host == nil {
+		return
+	}
 
+	host := plugin.host
 	nodeName := host.GetNodeName()
 	node, err := host.GetKubeClient().Core().Nodes().Get(nodeName)
 	if err != nil {
-		return fmt.Errorf("error getting node %q: %v", nodeName, err)
+		glog.Errorf("error getting node %q: %v", nodeName, err)
+		return
 	}
 	if node == nil {
-		return fmt.Errorf("no node instance returned for %q", nodeName)
+		glog.Errorf("no node instance returned for %q", nodeName)
+		return
 	}
 
-	node.Status.LDCapacity = api.LocalDiskList{
-		"/vol-pool/localdisk1": resource.MustParse("500G"),
-		"/vol-pool/localdisk2": resource.MustParse("500G"),
-		"/vol-pool/localdisk3": resource.MustParse("500G"),
-		"/vol-pool/localdisk4": resource.MustParse("500G"),
+	file, err := os.Open(LocalDiskConfig)
+	if err != nil {
+		if os.IsNotExist(err) {
+			glog.Errorf("Local disk config file does not exist: %s", LocalDiskConfig)
+			return
+		}
+		glog.Errorf("Open file error: %v", err)
+		return
 	}
+	defer file.Close()
 
-	node.Status.LDAllocatable = api.LocalDiskList{
-		"/vol-pool/localdisk1": resource.MustParse("500G"),
-		"/vol-pool/localdisk2": resource.MustParse("500G"),
-		"/vol-pool/localdisk3": resource.MustParse("500G"),
-		"/vol-pool/localdisk4": resource.MustParse("500G"),
+	scanner := bufio.NewScanner(file)
+	var path, size string
+	var mntPoint string
+	mounts, _ := mount.GetMounts()
+	count := 1
+OUT:
+	for scanner.Scan() {
+		line := scanner.Text()
+		tokens := strings.Fields(line)
+		tklen := len(tokens)
+		if tklen > 2 || tklen < 1 {
+			glog.Warningf("Ignore nnvalid line in local disk file: [%s]", line)
+			continue
+		}
+		path = tokens[0]
+		if tklen == 2 {
+			size = strings.ToUpper(tokens[1])
+			if !strings.HasSuffix(size, "M") {
+				size += "M"
+			}
+		}
+		for _, mnt := range mounts {
+			if mnt.Source == path {
+				glog.Warningf("The device has been mounted: %s", path)
+				continue OUT
+			}
+		}
+		cmd := exec.Command("/sbin/mkfs.ext4", path)
+		glog.Infof("Start to format %s", path)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			glog.Warningf("Cannot format %s with error %v; output: %q", path, err, string(output))
+			continue
+		}
+		for {
+			mntPoint = fmt.Sprintf(MountPoint, count)
+			count += 1
+			if err = os.MkdirAll(mntPoint, 0755); err != nil {
+				glog.Warningf("Cannot create mount point: %s", mntPoint)
+				continue
+			}
+			break
+		}
+		cmd = exec.Command("mount", path, mntPoint)
+		glog.Infof("Mount %s to %s", path, mntPoint)
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			glog.Warningf("Cannot mount %s to %s with error %v; output: %q", path, mntPoint, err, string(output))
+			continue
+		}
+
+		if size == "" {
+			cmd = exec.Command("df", "-H")
+			output, _ = cmd.CombinedOutput()
+			for _, df := range strings.Split(string(output), "\n") {
+				words := strings.Fields(df)
+				if len(words) != 6 {
+					glog.Warningf("The output of df -H is invalid: %s", df)
+					continue
+				}
+				if words[5] == mntPoint {
+					size = words[1]
+					break
+				}
+			}
+		}
+		glog.Infof("Added loca disk: dev %s; mount point %s; size %s", path, mntPoint, size)
+		node.Status.LDCapacity[api.DevicePath(mntPoint)] = resource.MustParse(size)
+		node.Status.LDAllocatable[api.DevicePath(mntPoint)] = resource.MustParse(size)
 	}
-
-
 	host.GetKubeClient().Core().Nodes().UpdateStatus(node)
+}
+
+func (plugin *localDiskPlugin) Init(host volume.VolumeHost) error {
+	plugin.host = host
+	//
+	//nodeName := host.GetNodeName()
+	//node, err := host.GetKubeClient().Core().Nodes().Get(nodeName)
+	//if err != nil {
+	//	return fmt.Errorf("error getting node %q: %v", nodeName, err)
+	//}
+	//if node == nil {
+	//	return fmt.Errorf("no node instance returned for %q", nodeName)
+	//}
+	//
+	//node.Status.LDCapacity = api.LocalDiskList{
+	//	"/vol-pool/localdisk1": resource.MustParse("500G"),
+	//	"/vol-pool/localdisk2": resource.MustParse("500G"),
+	//	"/vol-pool/localdisk3": resource.MustParse("500G"),
+	//	"/vol-pool/localdisk4": resource.MustParse("500G"),
+	//}
+	//
+	//node.Status.LDAllocatable = api.LocalDiskList{
+	//	"/vol-pool/localdisk1": resource.MustParse("500G"),
+	//	"/vol-pool/localdisk2": resource.MustParse("500G"),
+	//	"/vol-pool/localdisk3": resource.MustParse("500G"),
+	//	"/vol-pool/localdisk4": resource.MustParse("500G"),
+	//}
+	//
+	//
+	//host.GetKubeClient().Core().Nodes().UpdateStatus(node)
+
+	go plugin.initLocalDisk()
 
 	return nil
 }
