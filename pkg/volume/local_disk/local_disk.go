@@ -43,8 +43,7 @@ func ProbeVolumePlugins(volumeConfig volume.VolumeConfig) []volume.VolumePlugin 
 	}
 }
 
-/*
-func ProbeRecyclableVolumePlugins(recyclerFunc func(spec *volume.Spec, host volume.VolumeHost, volumeConfig volume.VolumeConfig) (volume.Recycler, error), volumeConfig volume.VolumeConfig) []volume.VolumePlugin {
+func ProbeRecyclableVolumePlugins(recyclerFunc func(pvName string, spec *volume.Spec, host volume.VolumeHost, volumeConfig volume.VolumeConfig) (volume.Recycler, error), volumeConfig volume.VolumeConfig) []volume.VolumePlugin {
 	return []volume.VolumePlugin{
 		&localDiskPlugin{
 			host:               nil,
@@ -54,11 +53,11 @@ func ProbeRecyclableVolumePlugins(recyclerFunc func(spec *volume.Spec, host volu
 		},
 	}
 }
-*/
+
 type localDiskPlugin struct {
 	host volume.VolumeHost
 	// decouple creating Recyclers/Deleters/Provisioners by deferring to a function.  Allows for easier testing.
-	newRecyclerFunc    func(spec *volume.Spec, host volume.VolumeHost, volumeConfig volume.VolumeConfig) (volume.Recycler, error)
+	newRecyclerFunc    func(pvName string, spec *volume.Spec, host volume.VolumeHost, volumeConfig volume.VolumeConfig) (volume.Recycler, error)
 	newDeleterFunc     func(spec *volume.Spec, host volume.VolumeHost) (volume.Deleter, error)
 	newProvisionerFunc func(options volume.VolumeOptions, host volume.VolumeHost) (volume.Provisioner, error)
 	config             volume.VolumeConfig
@@ -79,13 +78,26 @@ func (plugin *localDiskPlugin) Init(host volume.VolumeHost) error {
 	return nil
 }
 
-func (plugin *localDiskPlugin) Name() string {
+func (plugin *localDiskPlugin) GetPluginName() string {
 	return localDiskPluginName
+}
+
+func (plugin *localDiskPlugin) GetVolumeName(spec *volume.Spec) (string, error) {
+	volumeSource, _, err := getVolumeSource(spec)
+	if err != nil {
+		return "", err
+	}
+
+	return volumeSource.Path, nil
 }
 
 func (plugin *localDiskPlugin) CanSupport(spec *volume.Spec) bool {
 	return (spec.PersistentVolume != nil && spec.PersistentVolume.Spec.LocalDisk != nil) ||
 		(spec.Volume != nil && spec.Volume.LocalDisk != nil)
+}
+
+func (plugin *localDiskPlugin) RequiresRemount() bool {
+	return false
 }
 
 func (plugin *localDiskPlugin) GetAccessModes() []api.PersistentVolumeAccessMode {
@@ -94,30 +106,25 @@ func (plugin *localDiskPlugin) GetAccessModes() []api.PersistentVolumeAccessMode
 	}
 }
 
-func (plugin *localDiskPlugin) NewBuilder(spec *volume.Spec, pod *api.Pod, _ volume.VolumeOptions) (volume.Builder, error) {
-	if spec.Volume != nil && spec.Volume.LocalDisk != nil {
-		path := spec.Volume.LocalDisk.Path
-		return &localDiskBuilder{
-			localDisk: &localDisk{path: path},
-			readOnly: false,
-		}, nil
-	} else {
-		path := spec.PersistentVolume.Spec.LocalDisk.Path
-		return &localDiskBuilder{
-			localDisk: &localDisk{path: path},
-			readOnly: spec.ReadOnly,
-		}, nil
+func (plugin *localDiskPlugin) NewMounter(spec *volume.Spec, pod *api.Pod, _ volume.VolumeOptions) (volume.Mounter, error) {
+	localDiskVolumeSource, readOnly, err := getVolumeSource(spec)
+	if err != nil {
+		return nil, err
 	}
+	return &localDiskMounter{
+		localDisk: &localDisk{path: localDiskVolumeSource.Path},
+		readOnly: readOnly,
+	}, nil
 }
 
-func (plugin *localDiskPlugin) NewCleaner(volName string, podUID types.UID) (volume.Cleaner, error) {
-	return &localDiskCleaner{&localDisk{
+func (plugin *localDiskPlugin) NewUnmounter(volName string, podUID types.UID) (volume.Unmounter, error) {
+	return &localDiskUnmounter{&localDisk{
 		path: "",
 	}}, nil
 }
 
-func (plugin *localDiskPlugin) NewRecycler(spec *volume.Spec) (volume.Recycler, error) {
-	return plugin.newRecyclerFunc(spec, plugin.host, plugin.config)
+func (plugin *localDiskPlugin) NewRecycler(pvName string, spec *volume.Spec) (volume.Recycler, error) {
+	return plugin.newRecyclerFunc(pvName, spec, plugin.host, plugin.config)
 }
 
 func (plugin *localDiskPlugin) NewDeleter(spec *volume.Spec) (volume.Deleter, error) {
@@ -131,7 +138,7 @@ func (plugin *localDiskPlugin) NewProvisioner(options volume.VolumeOptions) (vol
 	return plugin.newProvisionerFunc(options, plugin.host)
 }
 
-func newRecycler(spec *volume.Spec, host volume.VolumeHost, config volume.VolumeConfig) (volume.Recycler, error) {
+func newRecycler(pvName string, spec *volume.Spec, host volume.VolumeHost, config volume.VolumeConfig) (volume.Recycler, error) {
 	if spec.PersistentVolume == nil || spec.PersistentVolume.Spec.LocalDisk == nil {
 		return nil, fmt.Errorf("spec.PersistentVolumeSource.LocalDisk is nil")
 	}
@@ -142,6 +149,7 @@ func newRecycler(spec *volume.Spec, host volume.VolumeHost, config volume.Volume
 		host:    host,
 		config:  config,
 		timeout: volume.CalculateTimeoutForVolume(config.RecyclerMinimumTimeout, config.RecyclerTimeoutIncrement, spec.PersistentVolume),
+		pvName:  pvName,
 	}, nil
 }
 
@@ -168,14 +176,14 @@ func (hp *localDisk) GetPath() string {
 	return hp.path
 }
 
-type localDiskBuilder struct {
+type localDiskMounter struct {
 	*localDisk
 	readOnly bool
 }
 
-var _ volume.Builder = &localDiskBuilder{}
+var _ volume.Mounter = &localDiskMounter{}
 
-func (b *localDiskBuilder) GetAttributes() volume.Attributes {
+func (b *localDiskMounter) GetAttributes() volume.Attributes {
 	return volume.Attributes{
 		ReadOnly:        b.readOnly,
 		Managed:         false,
@@ -184,32 +192,32 @@ func (b *localDiskBuilder) GetAttributes() volume.Attributes {
 }
 
 // SetUp does nothing.
-func (b *localDiskBuilder) SetUp(fsGroup *int64) error {
+func (b *localDiskMounter) SetUp(fsGroup *int64) error {
 	return nil
 }
 
 // SetUpAt does not make sense for host paths - probably programmer error.
-func (b *localDiskBuilder) SetUpAt(dir string, fsGroup *int64) error {
+func (b *localDiskMounter) SetUpAt(dir string, fsGroup *int64) error {
 	return fmt.Errorf("SetUpAt() does not make sense for host paths")
 }
 
-func (b *localDiskBuilder) GetPath() string {
+func (b *localDiskMounter) GetPath() string {
 	return b.path
 }
 
-type localDiskCleaner struct {
+type localDiskUnmounter struct {
 	*localDisk
 }
 
-var _ volume.Cleaner = &localDiskCleaner{}
+var _ volume.Unmounter = &localDiskUnmounter{}
 
 // TearDown does nothing.
-func (c *localDiskCleaner) TearDown() error {
+func (c *localDiskUnmounter) TearDown() error {
 	return nil
 }
 
 // TearDownAt does not make sense for host paths - probably programmer error.
-func (c *localDiskCleaner) TearDownAt(dir string) error {
+func (c *localDiskUnmounter) TearDownAt(dir string) error {
 	return fmt.Errorf("TearDownAt() does not make sense for host paths")
 }
 
@@ -222,6 +230,7 @@ type localDiskRecycler struct {
 	config  volume.VolumeConfig
 	timeout int64
 	volume.MetricsNil
+	pvName string
 }
 
 func (r *localDiskRecycler) GetPath() string {
@@ -235,13 +244,12 @@ func (r *localDiskRecycler) Recycle() error {
 	pod := r.config.RecyclerPodTemplate
 	// overrides
 	pod.Spec.ActiveDeadlineSeconds = &r.timeout
-	pod.GenerateName = "pv-recycler-hostpath-"
 	pod.Spec.Volumes[0].VolumeSource = api.VolumeSource{
 		LocalDisk: &api.LocalDiskVolumeSource{
 			Path: r.path,
 		},
 	}
-	return volume.RecycleVolumeByWatchingPodUntilCompletion(pod, r.host.GetKubeClient())
+	return volume.RecycleVolumeByWatchingPodUntilCompletion(r.pvName, pod, r.host.GetKubeClient())
 }
 
 // localDiskProvisioner implements a Provisioner for the LocalDisk plugin
@@ -251,22 +259,16 @@ type localDiskProvisioner struct {
 	options volume.VolumeOptions
 }
 
-// Create for localDisk simply creates a local /tmp/hostpath_pv/%s directory as a new PersistentVolume.
+// Create for localDisk simply creates a local /tmp/localdisk_pv/%s directory as a new PersistentVolume.
 // This Provisioner is meant for development and testing only and WILL NOT WORK in a multi-node cluster.
-func (r *localDiskProvisioner) Provision(pv *api.PersistentVolume) error {
-	if pv.Spec.LocalDisk == nil {
-		return fmt.Errorf("pv.Spec.LocalDisk cannot be nil")
-	}
-	return os.MkdirAll(pv.Spec.LocalDisk.Path, 0750)
-}
+func (r *localDiskProvisioner) Provision() (*api.PersistentVolume, error) {
+	fullpath := fmt.Sprintf("/tmp/localdisk_pv/%s", util.NewUUID())
 
-func (r *localDiskProvisioner) NewPersistentVolumeTemplate() (*api.PersistentVolume, error) {
-	fullpath := fmt.Sprintf("/tmp/hostpath_pv/%s", util.NewUUID())
-	return &api.PersistentVolume{
+	pv := &api.PersistentVolume{
 		ObjectMeta: api.ObjectMeta{
-			GenerateName: "pv-hostpath-",
+			Name: r.options.PVName,
 			Annotations: map[string]string{
-				"kubernetes.io/createdby": "hostpath-dynamic-provisioner",
+				"kubernetes.io/createdby": "localdisk-dynamic-provisioner",
 			},
 		},
 		Spec: api.PersistentVolumeSpec{
@@ -281,7 +283,9 @@ func (r *localDiskProvisioner) NewPersistentVolumeTemplate() (*api.PersistentVol
 				},
 			},
 		},
-	}, nil
+	}
+
+	return pv, os.MkdirAll(pv.Spec.LocalDisk.Path, 0750)
 }
 
 // localDiskDeleter deletes a localDisk PV from the cluster.
@@ -306,4 +310,16 @@ func (r *localDiskDeleter) Delete() error {
 		return fmt.Errorf("local_disk deleter only supports /tmp/.+ but received provided %s", r.GetPath())
 	}
 	return os.RemoveAll(r.GetPath())
+}
+
+func getVolumeSource(
+	spec *volume.Spec) (*api.LocalDiskVolumeSource, bool, error) {
+	if spec.Volume != nil && spec.Volume.LocalDisk != nil {
+		return spec.Volume.LocalDisk, spec.ReadOnly, nil
+	} else if spec.PersistentVolume != nil &&
+		spec.PersistentVolume.Spec.LocalDisk != nil {
+		return spec.PersistentVolume.Spec.LocalDisk, spec.ReadOnly, nil
+	}
+
+	return nil, false, fmt.Errorf("Spec does not reference an LocalDisk volume type")
 }
