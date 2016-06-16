@@ -17,23 +17,24 @@ limitations under the License.
 package local_disk
 
 import (
+	"bufio"
 	"fmt"
 	"os"
-	"regexp"
-	"bufio"
 	"os/exec"
+	"regexp"
 
 	"github.com/docker/docker/pkg/mount"
+	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/volume"
-	"k8s.io/kubernetes/pkg/api/resource"
-	"github.com/golang/glog"
 	"strings"
 )
 
 const LocalDiskConfig = "/etc/sysconfig/localdisk"
+
 var MountPoint string = "/var/vol-pool/localdisk%d"
 
 // This is the primary entrypoint for volume plugins.
@@ -88,7 +89,7 @@ func (plugin *localDiskPlugin) initLocalDisk() {
 	}
 
 	host := plugin.host
-	nodeName := host.GetNodeName()
+	nodeName := host.GetHostName()
 	node, err := host.GetKubeClient().Core().Nodes().Get(nodeName)
 	if err != nil {
 		glog.Errorf("error getting node %q: %v", nodeName, err)
@@ -252,7 +253,7 @@ func (plugin *localDiskPlugin) NewMounter(spec *volume.Spec, pod *api.Pod, _ vol
 	}
 	return &localDiskMounter{
 		localDisk: &localDisk{path: localDiskVolumeSource.Path},
-		readOnly: readOnly,
+		readOnly:  readOnly,
 	}, nil
 }
 
