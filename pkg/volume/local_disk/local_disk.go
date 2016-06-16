@@ -116,6 +116,13 @@ func (plugin *localDiskPlugin) initLocalDisk() {
 	var mntPoint string
 	mounts, _ := mount.GetMounts()
 	count := 1
+	update := false
+	if node.Status.LDCapacity == nil {
+		node.Status.LDCapacity = make(api.LocalDiskList)
+	}
+	if node.Status.LDAllocatable == nil {
+		node.Status.LDAllocatable = make(api.LocalDiskList)
+	}
 OUT:
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -178,10 +185,37 @@ OUT:
 			}
 		}
 		glog.Infof("Added loca disk: dev %s; mount point %s; size %s", path, mntPoint, size)
-		node.Status.LDCapacity[api.DevicePath(mntPoint)] = resource.MustParse(size)
-		node.Status.LDAllocatable[api.DevicePath(mntPoint)] = resource.MustParse(size)
+		node.Status.LDCapacity[mntPoint] = resource.MustParse(size)
+		node.Status.LDAllocatable[mntPoint] = resource.MustParse(size)
+		update = true
 	}
-	host.GetKubeClient().Core().Nodes().UpdateStatus(node)
+	if update == false {
+		glog.Infof("No more local disk detected")
+		return
+	}
+	glog.Infof("Node status: %+v", node.Status)
+	for count := 0; count < 10; count++ {
+		newNode, _ := host.GetKubeClient().Core().Nodes().Get(node.Name)
+		if newNode.Status.LDCapacity == nil {
+			newNode.Status.LDCapacity = make(api.LocalDiskList)
+		}
+		if newNode.Status.LDAllocatable == nil {
+			newNode.Status.LDAllocatable = make(api.LocalDiskList)
+		}
+		for k, v := range node.Status.LDCapacity {
+			newNode.Status.LDCapacity[k] = v
+		}
+		for k, v := range node.Status.LDAllocatable {
+			newNode.Status.LDAllocatable[k] = v
+		}
+		glog.Infof("###Updating Nnde status###: %+v", newNode.Status)
+		_, err = host.GetKubeClient().Core().Nodes().UpdateStatus(newNode)
+		if err != nil {
+			glog.Warningf("Update node status of local disk failed %d: %+v", count, err)
+		} else {
+			break
+		}
+	}
 }
 
 func (plugin *localDiskPlugin) Init(host volume.VolumeHost) error {

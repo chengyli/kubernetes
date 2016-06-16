@@ -1976,8 +1976,7 @@ type NodeSystemInfo struct {
 	Architecture string `json:"architecture"`
 }
 
-type DevicePath string
-type LocalDiskList map[DevicePath]resource.Quantity
+type LocalDiskList map[string]resource.Quantity
 
 // NodeStatus is information about the current status of a node.
 type NodeStatus struct {

@@ -27,6 +27,7 @@ import (
 )
 
 var emptyResource = Resource{}
+var emptyLD = make(LDResource)
 
 // NodeInfo is node level aggregated information.
 type NodeInfo struct {
@@ -39,6 +40,7 @@ type NodeInfo struct {
 	requestedResource *Resource
 	pods              []*api.Pod
 	nonzeroRequest    *Resource
+	requestedLD       LDResource
 }
 
 // Resource is a collection of compute resource.
@@ -48,6 +50,9 @@ type Resource struct {
 	NvidiaGPU int64
 }
 
+// LDResouce is to mark if a localDisk path has been used by pod
+type LDResource map[string]int
+
 // NewNodeInfo returns a ready to use empty NodeInfo object.
 // If any pods are given in arguments, their information will be aggregated in
 // the returned object.
@@ -56,6 +61,8 @@ func NewNodeInfo(pods ...*api.Pod) *NodeInfo {
 		requestedResource: &Resource{},
 		nonzeroRequest:    &Resource{},
 	}
+
+	ni.requestedLD = make(LDResource)
 	for _, pod := range pods {
 		ni.addPod(pod)
 	}
@@ -68,6 +75,13 @@ func (n *NodeInfo) Node() *api.Node {
 		return nil
 	}
 	return n.node
+}
+
+func (n *NodeInfo) RequestedLD() LDResource {
+	if n == nil {
+		return emptyLD
+	}
+	return n.requestedLD
 }
 
 // Pods return all pods scheduled (including assumed to be) on this node.
@@ -114,6 +128,18 @@ func (n *NodeInfo) String() string {
 	return fmt.Sprintf("&NodeInfo{Pods:%v, RequestedResource:%#v, NonZeroRequest: %#v}", podKeys, n.requestedResource, n.nonzeroRequest)
 }
 
+func (n *NodeInfo) addPodLocalDisk(pod *api.Pod) {
+	for _, v := range pod.Spec.Volumes {
+		if v.LocalDisk != nil {
+			if len(v.LocalDisk.Path) != 0 {
+				//Todo, now 1 means used, 0 means not used
+				n.requestedLD[v.LocalDisk.Path] = 1
+			}
+
+		}
+	}
+}
+
 // addPod adds pod information to this NodeInfo.
 func (n *NodeInfo) addPod(pod *api.Pod) {
 	cpu, mem, nvidia_gpu, non0_cpu, non0_mem := calculateResource(pod)
@@ -123,6 +149,19 @@ func (n *NodeInfo) addPod(pod *api.Pod) {
 	n.nonzeroRequest.MilliCPU += non0_cpu
 	n.nonzeroRequest.Memory += non0_mem
 	n.pods = append(n.pods, pod)
+	n.addPodLocalDisk(pod)
+}
+
+func (n *NodeInfo) removePodLocalDisk(pod *api.Pod) {
+	for _, v := range pod.Spec.Volumes {
+		if v.LocalDisk != nil {
+			if len(v.LocalDisk.Path) != 0 {
+				//Todo, now 1 means used, 0 means not used
+				n.requestedLD[v.LocalDisk.Path] = 0
+			}
+
+		}
+	}
 }
 
 // removePod subtracts pod information to this NodeInfo.
@@ -149,6 +188,7 @@ func (n *NodeInfo) removePod(pod *api.Pod) error {
 			n.requestedResource.NvidiaGPU -= nvidia_gpu
 			n.nonzeroRequest.MilliCPU -= non0_cpu
 			n.nonzeroRequest.Memory -= non0_mem
+			n.removePodLocalDisk(pod)
 			return nil
 		}
 	}

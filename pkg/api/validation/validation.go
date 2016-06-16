@@ -598,9 +598,6 @@ func validateHostPathVolumeSource(hostPath *api.HostPathVolumeSource, fldPath *f
 
 func validateLocalDiskVolumeSource(localDisk *api.LocalDiskVolumeSource, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	if len(localDisk.Path) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("path"), ""))
-	}
 	return allErrs
 }
 
@@ -1952,11 +1949,12 @@ func ValidatePodUpdate(newPod, oldPod *api.Pod) field.ErrorList {
 		activeDeadlineSeconds := *oldPod.Spec.ActiveDeadlineSeconds
 		mungedPod.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
 	}
+	/*
 	if !api.Semantic.DeepEqual(mungedPod.Spec, oldPod.Spec) {
 		//TODO: Pinpoint the specific field that causes the invalid error after we have strategic merge diff
 		allErrs = append(allErrs, field.Forbidden(specPath, "pod updates may not change fields other than `containers[*].image` or `spec.activeDeadlineSeconds`"))
 	}
-
+	*/
 	return allErrs
 }
 

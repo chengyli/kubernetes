@@ -2351,13 +2351,17 @@ func (kl *Kubelet) isOutOfDisk() bool {
 	return outOfDockerDisk || outOfRootDisk
 }
 
-func (k1 *Kubelet) isLocalDiskConflict(pods []*api.Pod, pod *api.Pod) bool {
-	var newPodVolPath []string
-	for _, vol := range pod.Spec.Volumes {
-		if vol.VolumeSource.LocalDisk != nil {
-			newPodVolPath = append(newPodVolPath, strings.TrimRight(vol.VolumeSource.LocalDisk.Path, "/"))
-		}
+func (kl *Kubelet) isLocalDiskConflict(pods []*api.Pod, pod *api.Pod) bool {
+	glog.Infof("Checking local disk ...")
+	mountedLDs := make(map[string]bool)
+
+	node, err := kl.kubeClient.Core().Nodes().Get(kl.nodeName)
+	if err != nil {
+		glog.Errorf("error getting node %q: %v", kl.nodeName, err)
+		return true
 	}
+	glog.Infof("Node status: %+v", node.Status)
+	// Get all mounted local disk paths
 	for _, localPod := range pods {
 		if localPod.Name == pod.Name {
 			continue
@@ -2365,16 +2369,66 @@ func (k1 *Kubelet) isLocalDiskConflict(pods []*api.Pod, pod *api.Pod) bool {
 		for _, vol := range localPod.Spec.Volumes {
 			if vol.VolumeSource.LocalDisk != nil {
 				existPath := strings.TrimRight(vol.VolumeSource.LocalDisk.Path, "/")
-				for _, path := range newPodVolPath {
-					if path == existPath {
-						glog.Warningf("old pod %s and new pod %s both require mounting [%s]",
-							pod.Name, localPod.Name, path)
-						return true
-					}
+				if existPath != "" {
+					mountedLDs[existPath] = true
 				}
 			}
 		}
 	}
+
+	// Check if new required local disk path confliction with mounted path
+	for _, vol := range pod.Spec.Volumes {
+		if vol.VolumeSource.LocalDisk != nil {
+                        newPath := strings.TrimRight(vol.VolumeSource.LocalDisk.Path, "/")
+			if newPath == "" {
+				continue
+			}
+			if mountedLDs[newPath] {
+				glog.Warningf("Local disk path conflict, path: %s", newPath)
+				return true
+			}
+			if _, ok := node.Status.LDCapacity[newPath]; !ok {
+				glog.Warningf("The local disk path [%s] required by pod [%s] does not exist in node [%s]",
+					newPath, pod.Name, node.Name)
+				return true
+			}
+			mountedLDs[newPath] = true
+		}
+	}
+
+	// Try assign new local disk path if path is empty
+	update := false
+	for _, vol := range pod.Spec.Volumes {
+		if vol.VolumeSource.LocalDisk != nil {
+			newPath := strings.TrimRight(vol.VolumeSource.LocalDisk.Path, "/")
+			if newPath == "" {
+				found := false
+				for mntPoint, _ := range node.Status.LDCapacity {
+					if mountedLDs[mntPoint] {
+						continue
+					}
+					mountedLDs[mntPoint] = true
+					vol.VolumeSource.LocalDisk.Path = mntPoint
+					found = true
+					break
+				}
+				if found == false {
+					glog.Warningf("no more local disks can be found")
+					return true
+				}
+				update = true
+			}
+		}
+	}
+	if update {
+		glog.Infof("Try to update pod spec for local disk info")
+		_, err = kl.kubeClient.Core().Pods(pod.Namespace).Update(pod)
+		if err != nil {
+			glog.Warningf("Update local disk path failed, pod: %s, err: %+v", pod.Name, err)
+			return true
+		}
+	}
+	glog.Infof("Local disk checking done!")
 	return false
 }
 

@@ -413,6 +413,61 @@ func podName(pod *api.Pod) string {
 	return pod.Namespace + "/" + pod.Name
 }
 
+func PodFitsLocalDisk(pod *api.Pod, nodeInfo *schedulercache.NodeInfo, LDAllocatable *api.LocalDiskList) bool {
+       if (len(*LDAllocatable) == 0) {
+               return false
+       }
+
+       request_vol := 0
+       ni_requestLD := nodeInfo.RequestedLD()
+
+       for _, v := range pod.Spec.Volumes {
+               if v.LocalDisk != nil {
+                       request_vol++
+                       //If the path is specified in Pod Spec, then shall check if same
+                       // path has been used already.
+                       if _, found:= ni_requestLD[v.LocalDisk.Path]; found {
+                               return  false
+                       }
+               }
+       }
+
+       if (len(ni_requestLD) + request_vol <= len(*LDAllocatable)) {
+               return true
+       }
+
+       return false
+}
+
+func PodHasLDVolumes(pod *api.Pod) bool {
+       for _, v := range pod.Spec.Volumes {
+               if v.LocalDisk != nil {
+                       return true
+               }
+       }
+       return false
+}
+
+// PodFitsResources calculates fit based on requested, rather than used resources
+func LDFitsResources(pod *api.Pod, nodeInfo *schedulercache.NodeInfo) (bool, error) {
+	node := nodeInfo.Node()
+	if node != nil {
+		return false, fmt.Errorf("node not found")
+	}
+
+	if (PodHasLDVolumes(pod)) {
+		ret := PodFitsLocalDisk(pod, nodeInfo, &node.Status.LDAllocatable)
+		if !ret {
+			//Todo: correct the error message.
+			return false,
+			newInsufficientResourceError("LocalDisk", 1, 1, 1)
+		}
+	}
+
+	return true, nil
+}
+
+
 func PodFitsResources(pod *api.Pod, nodeInfo *schedulercache.NodeInfo) (bool, error) {
 	node := nodeInfo.Node()
 	if node == nil {
@@ -445,6 +500,8 @@ func PodFitsResources(pod *api.Pod, nodeInfo *schedulercache.NodeInfo) (bool, er
 		return false,
 			newInsufficientResourceError(nvidiaGpuResourceName, podRequest.nvidiaGPU, nodeInfo.RequestedResource().NvidiaGPU, totalNvidiaGPU)
 	}
+
+
 	glog.V(10).Infof("Schedule Pod %+v on Node %+v is allowed, Node is running only %v out of %v Pods.",
 		podName(pod), node.Name, len(nodeInfo.Pods()), allowedPodNumber)
 	return true, nil
@@ -732,6 +789,11 @@ func haveSame(a1, a2 []string) bool {
 
 func GeneralPredicates(pod *api.Pod, nodeInfo *schedulercache.NodeInfo) (bool, error) {
 	fit, err := PodFitsResources(pod, nodeInfo)
+	if !fit {
+		return fit, err
+	}
+
+	fit, err = LDFitsResources(pod, nodeInfo)
 	if !fit {
 		return fit, err
 	}
