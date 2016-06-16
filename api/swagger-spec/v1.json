@@ -16729,6 +16729,12 @@
       "type": "object",
       "description": "Allocatable represents the resources of a node that are available for scheduling. Defaults to Capacity."
      },
+     "ldcapacity": {
+      "type": "object"
+     },
+     "ldallocatable": {
+      "type": "object"
+     },
      "phase": {
       "type": "string",
       "description": "NodePhase is the recently observed lifecycle phase of the node. More info: http://releases.k8s.io/HEAD/docs/admin/node.md#node-phase"
@@ -17164,6 +17170,10 @@
       "$ref": "v1.HostPathVolumeSource",
       "description": "HostPath represents a directory on the host. Provisioned by a developer or tester. This is useful for single-node development and testing only! On-host storage is not supported in any way and WILL NOT WORK in a multi-node cluster. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath"
      },
+     "localDisk": {
+      "$ref": "v1.LocalDiskVolumeSource",
+      "description": "LocalDisk"
+     },
      "glusterfs": {
       "$ref": "v1.GlusterfsVolumeSource",
       "description": "Glusterfs represents a Glusterfs volume that is attached to a host and exposed to the pod. Provisioned by an admin. More info: http://releases.k8s.io/HEAD/examples/glusterfs/README.md"
@@ -17287,6 +17297,17 @@
      "path": {
       "type": "string",
       "description": "Path of the directory on the host. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath"
+     }
+    }
+   },
+   "v1.LocalDiskVolumeSource": {
+    "id": "v1.LocalDiskVolumeSource",
+    "required": [
+     "path"
+    ],
+    "properties": {
+     "path": {
+      "type": "string"
      }
     }
    },
@@ -17767,6 +17788,10 @@
      "hostPath": {
       "$ref": "v1.HostPathVolumeSource",
       "description": "HostPath represents a pre-existing file or directory on the host machine that is directly exposed to the container. This is generally used for system agents or other privileged things that are allowed to see the host machine. Most containers will NOT need this. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath"
+     },
+     "localDisk": {
+      "$ref": "v1.LocalDiskVolumeSource",
+      "description": "LocalDisk"
      },
      "emptyDir": {
       "$ref": "v1.EmptyDirVolumeSource",

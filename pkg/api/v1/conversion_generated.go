@@ -149,6 +149,8 @@ func init() {
 		Convert_api_LoadBalancerIngress_To_v1_LoadBalancerIngress,
 		Convert_v1_LoadBalancerStatus_To_api_LoadBalancerStatus,
 		Convert_api_LoadBalancerStatus_To_v1_LoadBalancerStatus,
+		Convert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource,
+		Convert_api_LocalDiskVolumeSource_To_v1_LocalDiskVolumeSource,
 		Convert_v1_LocalObjectReference_To_api_LocalObjectReference,
 		Convert_api_LocalObjectReference_To_v1_LocalObjectReference,
 		Convert_v1_NFSVolumeSource_To_api_NFSVolumeSource,
@@ -2786,6 +2788,24 @@ func Convert_api_LoadBalancerStatus_To_v1_LoadBalancerStatus(in *api.LoadBalance
 	return autoConvert_api_LoadBalancerStatus_To_v1_LoadBalancerStatus(in, out, s)
 }
 
+func autoConvert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource(in *LocalDiskVolumeSource, out *api.LocalDiskVolumeSource, s conversion.Scope) error {
+	out.Path = in.Path
+	return nil
+}
+
+func Convert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource(in *LocalDiskVolumeSource, out *api.LocalDiskVolumeSource, s conversion.Scope) error {
+	return autoConvert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource(in, out, s)
+}
+
+func autoConvert_api_LocalDiskVolumeSource_To_v1_LocalDiskVolumeSource(in *api.LocalDiskVolumeSource, out *LocalDiskVolumeSource, s conversion.Scope) error {
+	out.Path = in.Path
+	return nil
+}
+
+func Convert_api_LocalDiskVolumeSource_To_v1_LocalDiskVolumeSource(in *api.LocalDiskVolumeSource, out *LocalDiskVolumeSource, s conversion.Scope) error {
+	return autoConvert_api_LocalDiskVolumeSource_To_v1_LocalDiskVolumeSource(in, out, s)
+}
+
 func autoConvert_v1_LocalObjectReference_To_api_LocalObjectReference(in *LocalObjectReference, out *api.LocalObjectReference, s conversion.Scope) error {
 	out.Name = in.Name
 	return nil
@@ -3348,6 +3368,32 @@ func autoConvert_v1_NodeStatus_To_api_NodeStatus(in *NodeStatus, out *api.NodeSt
 	if err := Convert_v1_ResourceList_To_api_ResourceList(&in.Allocatable, &out.Allocatable, s); err != nil {
 		return err
 	}
+	if in.LDCapacity != nil {
+		in, out := &in.LDCapacity, &out.LDCapacity
+		*out = make(api.LocalDiskList, len(*in))
+		for key, val := range *in {
+			newVal := new(resource.Quantity)
+			if err := api.Convert_resource_Quantity_To_resource_Quantity(&val, newVal, s); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDCapacity = nil
+	}
+	if in.LDAllocatable != nil {
+		in, out := &in.LDAllocatable, &out.LDAllocatable
+		*out = make(api.LocalDiskList, len(*in))
+		for key, val := range *in {
+			newVal := new(resource.Quantity)
+			if err := api.Convert_resource_Quantity_To_resource_Quantity(&val, newVal, s); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDAllocatable = nil
+	}
 	out.Phase = api.NodePhase(in.Phase)
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
@@ -3430,6 +3476,32 @@ func autoConvert_api_NodeStatus_To_v1_NodeStatus(in *api.NodeStatus, out *NodeSt
 		}
 	} else {
 		out.Allocatable = nil
+	}
+	if in.LDCapacity != nil {
+		in, out := &in.LDCapacity, &out.LDCapacity
+		*out = make(LocalDiskList, len(*in))
+		for key, val := range *in {
+			newVal := new(resource.Quantity)
+			if err := api.Convert_resource_Quantity_To_resource_Quantity(&val, newVal, s); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDCapacity = nil
+	}
+	if in.LDAllocatable != nil {
+		in, out := &in.LDAllocatable, &out.LDAllocatable
+		*out = make(LocalDiskList, len(*in))
+		for key, val := range *in {
+			newVal := new(resource.Quantity)
+			if err := api.Convert_resource_Quantity_To_resource_Quantity(&val, newVal, s); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDAllocatable = nil
 	}
 	out.Phase = NodePhase(in.Phase)
 	if in.Conditions != nil {
@@ -3994,6 +4066,15 @@ func autoConvert_v1_PersistentVolumeSource_To_api_PersistentVolumeSource(in *Per
 	} else {
 		out.HostPath = nil
 	}
+	if in.LocalDisk != nil {
+		in, out := &in.LocalDisk, &out.LocalDisk
+		*out = new(api.LocalDiskVolumeSource)
+		if err := Convert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
+	}
 	if in.Glusterfs != nil {
 		in, out := &in.Glusterfs, &out.Glusterfs
 		*out = new(api.GlusterfsVolumeSource)
@@ -4127,6 +4208,15 @@ func autoConvert_api_PersistentVolumeSource_To_v1_PersistentVolumeSource(in *api
 		}
 	} else {
 		out.HostPath = nil
+	}
+	if in.LocalDisk != nil {
+		in, out := &in.LocalDisk, &out.LocalDisk
+		*out = new(LocalDiskVolumeSource)
+		if err := Convert_api_LocalDiskVolumeSource_To_v1_LocalDiskVolumeSource(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
 	}
 	if in.Glusterfs != nil {
 		in, out := &in.Glusterfs, &out.Glusterfs
@@ -6284,6 +6374,15 @@ func autoConvert_v1_VolumeSource_To_api_VolumeSource(in *VolumeSource, out *api.
 	} else {
 		out.HostPath = nil
 	}
+	if in.LocalDisk != nil {
+		in, out := &in.LocalDisk, &out.LocalDisk
+		*out = new(api.LocalDiskVolumeSource)
+		if err := Convert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
+	}
 	if in.EmptyDir != nil {
 		in, out := &in.EmptyDir, &out.EmptyDir
 		*out = new(api.EmptyDirVolumeSource)
@@ -6471,6 +6570,15 @@ func autoConvert_api_VolumeSource_To_v1_VolumeSource(in *api.VolumeSource, out *
 		}
 	} else {
 		out.HostPath = nil
+	}
+	if in.LocalDisk != nil {
+		in, out := &in.LocalDisk, &out.LocalDisk
+		*out = new(LocalDiskVolumeSource)
+		if err := Convert_api_LocalDiskVolumeSource_To_v1_LocalDiskVolumeSource(*in, *out, s); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
 	}
 	if in.EmptyDir != nil {
 		in, out := &in.EmptyDir, &out.EmptyDir

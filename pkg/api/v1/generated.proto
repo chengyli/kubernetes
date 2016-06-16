@@ -1063,6 +1063,10 @@ message LoadBalancerStatus {
   repeated LoadBalancerIngress ingress = 1;
 }
 
+message LocalDiskVolumeSource {
+  optional string path = 1;
+}
+
 // LocalObjectReference contains enough information to let you locate the
 // referenced object inside the same namespace.
 message LocalObjectReference {
@@ -1280,6 +1284,10 @@ message NodeStatus {
   // Allocatable represents the resources of a node that are available for scheduling.
   // Defaults to Capacity.
   map<string, k8s.io.kubernetes.pkg.api.resource.Quantity> allocatable = 2;
+
+  map<string, k8s.io.kubernetes.pkg.api.resource.Quantity> ldcapacity = 10;
+
+  map<string, k8s.io.kubernetes.pkg.api.resource.Quantity> ldallocatable = 11;
 
   // NodePhase is the recently observed lifecycle phase of the node.
   // More info: http://releases.k8s.io/HEAD/docs/admin/node.md#node-phase
@@ -1657,6 +1665,9 @@ message PersistentVolumeSource {
   // On-host storage is not supported in any way and WILL NOT WORK in a multi-node cluster.
   // More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath
   optional HostPathVolumeSource hostPath = 3;
+
+  // LocalDisk
+  optional LocalDiskVolumeSource localDisk = 15;
 
   // Glusterfs represents a Glusterfs volume that is attached to a host and
   // exposed to the pod. Provisioned by an admin.
@@ -2814,6 +2825,9 @@ message VolumeSource {
   // TODO(jonesdl) We need to restrict who can use host directory mounts and who can/can not
   // mount host directories as read/write.
   optional HostPathVolumeSource hostPath = 1;
+
+  // LocalDisk
+  optional LocalDiskVolumeSource localDisk = 21;
 
   // EmptyDir represents a temporary directory that shares a pod's lifetime.
   // More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#emptydir

@@ -92,6 +92,7 @@ func init() {
 		DeepCopy_v1_ListOptions,
 		DeepCopy_v1_LoadBalancerIngress,
 		DeepCopy_v1_LoadBalancerStatus,
+		DeepCopy_v1_LocalDiskVolumeSource,
 		DeepCopy_v1_LocalObjectReference,
 		DeepCopy_v1_NFSVolumeSource,
 		DeepCopy_v1_Namespace,
@@ -1267,6 +1268,11 @@ func DeepCopy_v1_LoadBalancerStatus(in LoadBalancerStatus, out *LoadBalancerStat
 	return nil
 }
 
+func DeepCopy_v1_LocalDiskVolumeSource(in LocalDiskVolumeSource, out *LocalDiskVolumeSource, c *conversion.Cloner) error {
+	out.Path = in.Path
+	return nil
+}
+
 func DeepCopy_v1_LocalObjectReference(in LocalObjectReference, out *LocalObjectReference, c *conversion.Cloner) error {
 	out.Name = in.Name
 	return nil
@@ -1507,6 +1513,32 @@ func DeepCopy_v1_NodeStatus(in NodeStatus, out *NodeStatus, c *conversion.Cloner
 		}
 	} else {
 		out.Allocatable = nil
+	}
+	if in.LDCapacity != nil {
+		in, out := in.LDCapacity, &out.LDCapacity
+		*out = make(LocalDiskList)
+		for key, val := range in {
+			newVal := new(resource.Quantity)
+			if err := resource.DeepCopy_resource_Quantity(val, newVal, c); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDCapacity = nil
+	}
+	if in.LDAllocatable != nil {
+		in, out := in.LDAllocatable, &out.LDAllocatable
+		*out = make(LocalDiskList)
+		for key, val := range in {
+			newVal := new(resource.Quantity)
+			if err := resource.DeepCopy_resource_Quantity(val, newVal, c); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDAllocatable = nil
 	}
 	out.Phase = in.Phase
 	if in.Conditions != nil {
@@ -1832,6 +1864,15 @@ func DeepCopy_v1_PersistentVolumeSource(in PersistentVolumeSource, out *Persiste
 		}
 	} else {
 		out.HostPath = nil
+	}
+	if in.LocalDisk != nil {
+		in, out := in.LocalDisk, &out.LocalDisk
+		*out = new(LocalDiskVolumeSource)
+		if err := DeepCopy_v1_LocalDiskVolumeSource(*in, *out, c); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
 	}
 	if in.Glusterfs != nil {
 		in, out := in.Glusterfs, &out.Glusterfs
@@ -3053,6 +3094,15 @@ func DeepCopy_v1_VolumeSource(in VolumeSource, out *VolumeSource, c *conversion.
 		}
 	} else {
 		out.HostPath = nil
+	}
+	if in.LocalDisk != nil {
+		in, out := in.LocalDisk, &out.LocalDisk
+		*out = new(LocalDiskVolumeSource)
+		if err := DeepCopy_v1_LocalDiskVolumeSource(*in, *out, c); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
 	}
 	if in.EmptyDir != nil {
 		in, out := in.EmptyDir, &out.EmptyDir

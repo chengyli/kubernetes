@@ -345,6 +345,9 @@ func DeepCopy_componentconfig_PersistentVolumeRecyclerConfiguration(in Persisten
 	out.PodTemplateFilePathHostPath = in.PodTemplateFilePathHostPath
 	out.MinimumTimeoutHostPath = in.MinimumTimeoutHostPath
 	out.IncrementTimeoutHostPath = in.IncrementTimeoutHostPath
+	out.PodTemplateFilePathLocalDisk = in.PodTemplateFilePathLocalDisk
+	out.MinimumTimeoutLocalDisk = in.MinimumTimeoutLocalDisk
+	out.IncrementTimeoutLocalDisk = in.IncrementTimeoutLocalDisk
 	return nil
 }
 
@@ -361,6 +364,7 @@ func DeepCopy_componentconfig_PortRangeVar(in PortRangeVar, out *PortRangeVar, c
 
 func DeepCopy_componentconfig_VolumeConfiguration(in VolumeConfiguration, out *VolumeConfiguration, c *conversion.Cloner) error {
 	out.EnableHostPathProvisioning = in.EnableHostPathProvisioning
+	out.EnableLocalDiskProvisioning = in.EnableLocalDiskProvisioning
 	if err := DeepCopy_componentconfig_PersistentVolumeRecyclerConfiguration(in.PersistentVolumeRecyclerConfiguration, &out.PersistentVolumeRecyclerConfiguration, c); err != nil {
 		return err
 	}

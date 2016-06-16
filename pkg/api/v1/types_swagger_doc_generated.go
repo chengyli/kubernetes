@@ -1045,6 +1045,7 @@ var map_PersistentVolumeSource = map[string]string{
 	"gcePersistentDisk":    "GCEPersistentDisk represents a GCE Disk resource that is attached to a kubelet's host machine and then exposed to the pod. Provisioned by an admin. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#gcepersistentdisk",
 	"awsElasticBlockStore": "AWSElasticBlockStore represents an AWS Disk resource that is attached to a kubelet's host machine and then exposed to the pod. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#awselasticblockstore",
 	"hostPath":             "HostPath represents a directory on the host. Provisioned by a developer or tester. This is useful for single-node development and testing only! On-host storage is not supported in any way and WILL NOT WORK in a multi-node cluster. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath",
+	"localDisk":            "LocalDisk",
 	"glusterfs":            "Glusterfs represents a Glusterfs volume that is attached to a host and exposed to the pod. Provisioned by an admin. More info: http://releases.k8s.io/HEAD/examples/glusterfs/README.md",
 	"nfs":                  "NFS represents an NFS mount on the host. Provisioned by an admin. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#nfs",
 	"rbd":                  "RBD represents a Rados Block Device mount on the host that shares a pod's lifetime. More info: http://releases.k8s.io/HEAD/examples/rbd/README.md",
@@ -1682,6 +1683,7 @@ func (VolumeMount) SwaggerDoc() map[string]string {
 var map_VolumeSource = map[string]string{
 	"":                      "Represents the source of a volume to mount. Only one of its members may be specified.",
 	"hostPath":              "HostPath represents a pre-existing file or directory on the host machine that is directly exposed to the container. This is generally used for system agents or other privileged things that are allowed to see the host machine. Most containers will NOT need this. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath",
+	"localDisk":             "LocalDisk",
 	"emptyDir":              "EmptyDir represents a temporary directory that shares a pod's lifetime. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#emptydir",
 	"gcePersistentDisk":     "GCEPersistentDisk represents a GCE Disk resource that is attached to a kubelet's host machine and then exposed to the pod. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#gcepersistentdisk",
 	"awsElasticBlockStore":  "AWSElasticBlockStore represents an AWS Disk resource that is attached to a kubelet's host machine and then exposed to the pod. More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#awselasticblockstore",

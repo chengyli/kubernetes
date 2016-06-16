@@ -221,7 +221,7 @@ type VolumeSource struct {
 	// mount host directories as read/write.
 	HostPath *HostPathVolumeSource `json:"hostPath,omitempty" protobuf:"bytes,1,opt,name=hostPath"`
 	//LocalDisk
-	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty"`
+	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty" protobuf:"bytes,21,opt,name=localDisk"`
 
 	// EmptyDir represents a temporary directory that shares a pod's lifetime.
 	// More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#emptydir
@@ -313,7 +313,7 @@ type PersistentVolumeSource struct {
 	// More info: http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath
 	HostPath *HostPathVolumeSource `json:"hostPath,omitempty" protobuf:"bytes,3,opt,name=hostPath"`
 	//LocalDisk
-	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty"`
+	LocalDisk *LocalDiskVolumeSource `json:"localDisk,omitempty" protobuf:"bytes,15,opt,name=localDisk"`
 	// Glusterfs represents a Glusterfs volume that is attached to a host and
 	// exposed to the pod. Provisioned by an admin.
 	// More info: http://releases.k8s.io/HEAD/examples/glusterfs/README.md
@@ -534,9 +534,8 @@ type HostPathVolumeSource struct {
 }
 
 type LocalDiskVolumeSource struct {
-	Path string `json:"path"`
+	Path string `json:"path" protobuf:"bytes,1,opt,name=path"`
 }
-
 
 // Represents an empty directory for a pod.
 // Empty directory volumes support ownership management and SELinux relabeling.
@@ -2372,6 +2371,7 @@ type NodeSystemInfo struct {
 }
 
 type LocalDiskList map[string]resource.Quantity
+
 // NodeStatus is information about the current status of a node.
 type NodeStatus struct {
 	// Capacity represents the total resources of a node.
@@ -2381,8 +2381,8 @@ type NodeStatus struct {
 	// Defaults to Capacity.
 	Allocatable ResourceList `json:"allocatable,omitempty" protobuf:"bytes,2,rep,name=allocatable,casttype=ResourceList,castkey=ResourceName"`
 
-	LDCapacity LocalDiskList `json:"ldcapacity,omitempty"`
-	LDAllocatable LocalDiskList `json:"ldallocatable,omitempty"`
+	LDCapacity    LocalDiskList `json:"ldcapacity,omitempty" protobuf:"bytes,10,rep,name=ldcapacity,casttype=LocalDiskList"`
+	LDAllocatable LocalDiskList `json:"ldallocatable,omitempty" protobuf:"bytes,11,rep,name=ldallocatable,casttype=LocalDiskList"`
 	// NodePhase is the recently observed lifecycle phase of the node.
 	// More info: http://releases.k8s.io/HEAD/docs/admin/node.md#node-phase
 	Phase NodePhase `json:"phase,omitempty" protobuf:"bytes,3,opt,name=phase,casttype=NodePhase"`

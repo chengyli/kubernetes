@@ -94,6 +94,7 @@ func init() {
 		DeepCopy_api_ListOptions,
 		DeepCopy_api_LoadBalancerIngress,
 		DeepCopy_api_LoadBalancerStatus,
+		DeepCopy_api_LocalDiskVolumeSource,
 		DeepCopy_api_LocalObjectReference,
 		DeepCopy_api_NFSVolumeSource,
 		DeepCopy_api_Namespace,
@@ -1303,6 +1304,11 @@ func DeepCopy_api_LoadBalancerStatus(in LoadBalancerStatus, out *LoadBalancerSta
 	return nil
 }
 
+func DeepCopy_api_LocalDiskVolumeSource(in LocalDiskVolumeSource, out *LocalDiskVolumeSource, c *conversion.Cloner) error {
+	out.Path = in.Path
+	return nil
+}
+
 func DeepCopy_api_LocalObjectReference(in LocalObjectReference, out *LocalObjectReference, c *conversion.Cloner) error {
 	out.Name = in.Name
 	return nil
@@ -1560,6 +1566,32 @@ func DeepCopy_api_NodeStatus(in NodeStatus, out *NodeStatus, c *conversion.Clone
 		}
 	} else {
 		out.Allocatable = nil
+	}
+	if in.LDCapacity != nil {
+		in, out := in.LDCapacity, &out.LDCapacity
+		*out = make(LocalDiskList)
+		for key, val := range in {
+			newVal := new(resource.Quantity)
+			if err := resource.DeepCopy_resource_Quantity(val, newVal, c); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDCapacity = nil
+	}
+	if in.LDAllocatable != nil {
+		in, out := in.LDAllocatable, &out.LDAllocatable
+		*out = make(LocalDiskList)
+		for key, val := range in {
+			newVal := new(resource.Quantity)
+			if err := resource.DeepCopy_resource_Quantity(val, newVal, c); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.LDAllocatable = nil
 	}
 	out.Phase = in.Phase
 	if in.Conditions != nil {
@@ -1885,6 +1917,15 @@ func DeepCopy_api_PersistentVolumeSource(in PersistentVolumeSource, out *Persist
 		}
 	} else {
 		out.HostPath = nil
+	}
+	if in.LocalDisk != nil {
+		in, out := in.LocalDisk, &out.LocalDisk
+		*out = new(LocalDiskVolumeSource)
+		if err := DeepCopy_api_LocalDiskVolumeSource(*in, *out, c); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
 	}
 	if in.Glusterfs != nil {
 		in, out := in.Glusterfs, &out.Glusterfs
@@ -3092,6 +3133,15 @@ func DeepCopy_api_VolumeSource(in VolumeSource, out *VolumeSource, c *conversion
 		}
 	} else {
 		out.HostPath = nil
+	}
+	if in.LocalDisk != nil {
+		in, out := in.LocalDisk, &out.LocalDisk
+		*out = new(LocalDiskVolumeSource)
+		if err := DeepCopy_api_LocalDiskVolumeSource(*in, *out, c); err != nil {
+			return err
+		}
+	} else {
+		out.LocalDisk = nil
 	}
 	if in.EmptyDir != nil {
 		in, out := in.EmptyDir, &out.EmptyDir

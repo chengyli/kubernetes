@@ -3551,6 +3551,13 @@ The resulting set of endpoints can be viewed as:<br>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">localDisk</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LocalDisk</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#_v1_localdiskvolumesource">v1.LocalDiskVolumeSource</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">emptyDir</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">EmptyDir represents a temporary directory that shares a pod&#8217;s lifetime. More info: <a href="http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#emptydir">http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#emptydir</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
@@ -4714,6 +4721,20 @@ The resulting set of endpoints can be viewed as:<br>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ldcapacity</p></td>
+<td class="tableblock halign-left valign-top"></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">object</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ldallocatable</p></td>
+<td class="tableblock halign-left valign-top"></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">object</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">phase</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">NodePhase is the recently observed lifecycle phase of the node. More info: <a href="http://releases.k8s.io/HEAD/docs/admin/node.md#node-phase">http://releases.k8s.io/HEAD/docs/admin/node.md#node-phase</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
@@ -5801,6 +5822,13 @@ The resulting set of endpoints can be viewed as:<br>
 <td class="tableblock halign-left valign-top"><p class="tableblock">HostPath represents a directory on the host. Provisioned by a developer or tester. This is useful for single-node development and testing only! On-host storage is not supported in any way and WILL NOT WORK in a multi-node cluster. More info: <a href="http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath">http://releases.k8s.io/HEAD/docs/user-guide/volumes.md#hostpath</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#_v1_hostpathvolumesource">v1.HostPathVolumeSource</a></p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">localDisk</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">LocalDisk</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">false</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#_v1_localdiskvolumesource">v1.LocalDiskVolumeSource</a></p></td>
 <td class="tableblock halign-left valign-top"></td>
 </tr>
 <tr>
@@ -7145,6 +7173,37 @@ The resulting set of endpoints can be viewed as:<br>
 
 </div>
 <div class="sect2">
+<h3 id="_v1_localdiskvolumesource">v1.LocalDiskVolumeSource</h3>
+<table class="tableblock frame-all grid-all" style="width:100%; ">
+<colgroup>
+<col style="width:20%;">
+<col style="width:20%;">
+<col style="width:20%;">
+<col style="width:20%;">
+<col style="width:20%;"> 
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Description</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Schema</th>
+<th class="tableblock halign-left valign-top">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">path</p></td>
+<td class="tableblock halign-left valign-top"></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">true</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
+<td class="tableblock halign-left valign-top"></td>
+</tr>
+</tbody>
+</table>
+
+</div>
+<div class="sect2">
 <h3 id="_v1_limitrangeitem">v1.LimitRangeItem</h3>
 <div class="paragraph">
 <p>LimitRangeItem defines a min/max usage limit for any resource that matches on kind.</p>
@@ -8105,7 +8164,7 @@ The resulting set of endpoints can be viewed as:<br>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-06-08 04:10:38 UTC
+Last updated 2016-06-16 10:35:19 UTC
 </div>
 </div>
 </body>
