@@ -80,7 +80,7 @@ var _ volume.DeletableVolumePlugin = &localDiskPlugin{}
 var _ volume.ProvisionableVolumePlugin = &localDiskPlugin{}
 
 const (
-	localDiskPluginName = "kubernetes.io/host-path"
+	localDiskPluginName = "kubernetes.io/local-disk"
 )
 
 func (plugin *localDiskPlugin) initLocalDisk() {
