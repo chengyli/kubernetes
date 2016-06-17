@@ -451,7 +451,7 @@ func PodHasLDVolumes(pod *api.Pod) bool {
 // PodFitsResources calculates fit based on requested, rather than used resources
 func LDFitsResources(pod *api.Pod, nodeInfo *schedulercache.NodeInfo) (bool, error) {
 	node := nodeInfo.Node()
-	if node != nil {
+	if node == nil {
 		return false, fmt.Errorf("node not found")
 	}
 
