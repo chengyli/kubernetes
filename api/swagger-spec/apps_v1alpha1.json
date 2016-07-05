@@ -1434,11 +1434,26 @@
    "v1.LocalDiskVolumeSource": {
     "id": "v1.LocalDiskVolumeSource",
     "required": [
-     "path"
+     "path",
+     "volumeszie",
+     "type"
     ],
     "properties": {
      "path": {
       "type": "string"
+     },
+     "volumeszie": {
+      "type": "integer",
+      "format": "int64",
+      "description": "The size of local disk, unit is MB"
+     },
+     "type": {
+      "type": "string",
+      "description": "The type of local disk, it could be \"disk\", \"lvm\" now."
+     },
+     "fsType": {
+      "type": "string",
+      "description": "The filesystem type of local disk, the default is ext4"
      }
     }
    },

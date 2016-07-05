@@ -73,6 +73,15 @@ func init() {
 		DeepCopy_v1beta1_LabelSelector,
 		DeepCopy_v1beta1_LabelSelectorRequirement,
 		DeepCopy_v1beta1_ListOptions,
+		DeepCopy_v1beta1_LocalVolume,
+		DeepCopy_v1beta1_LocalVolumeClaim,
+		DeepCopy_v1beta1_LocalVolumeClaimList,
+		DeepCopy_v1beta1_LocalVolumeClaimSpec,
+		DeepCopy_v1beta1_LocalVolumeClaimStatus,
+		DeepCopy_v1beta1_LocalVolumeList,
+		DeepCopy_v1beta1_LocalVolumeSource,
+		DeepCopy_v1beta1_LocalVolumeSpec,
+		DeepCopy_v1beta1_LocalVolumeStatus,
 		DeepCopy_v1beta1_NetworkPolicy,
 		DeepCopy_v1beta1_NetworkPolicyIngressRule,
 		DeepCopy_v1beta1_NetworkPolicyList,
@@ -799,6 +808,172 @@ func DeepCopy_v1beta1_ListOptions(in ListOptions, out *ListOptions, c *conversio
 	} else {
 		out.TimeoutSeconds = nil
 	}
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolume(in LocalVolume, out *LocalVolume, c *conversion.Cloner) error {
+	if err := unversioned.DeepCopy_unversioned_TypeMeta(in.TypeMeta, &out.TypeMeta, c); err != nil {
+		return err
+	}
+	if err := v1.DeepCopy_v1_ObjectMeta(in.ObjectMeta, &out.ObjectMeta, c); err != nil {
+		return err
+	}
+	if err := DeepCopy_v1beta1_LocalVolumeSpec(in.Spec, &out.Spec, c); err != nil {
+		return err
+	}
+	if err := DeepCopy_v1beta1_LocalVolumeStatus(in.Status, &out.Status, c); err != nil {
+		return err
+	}
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeClaim(in LocalVolumeClaim, out *LocalVolumeClaim, c *conversion.Cloner) error {
+	if err := unversioned.DeepCopy_unversioned_TypeMeta(in.TypeMeta, &out.TypeMeta, c); err != nil {
+		return err
+	}
+	if err := v1.DeepCopy_v1_ObjectMeta(in.ObjectMeta, &out.ObjectMeta, c); err != nil {
+		return err
+	}
+	if err := DeepCopy_v1beta1_LocalVolumeClaimSpec(in.Spec, &out.Spec, c); err != nil {
+		return err
+	}
+	if err := DeepCopy_v1beta1_LocalVolumeClaimStatus(in.Status, &out.Status, c); err != nil {
+		return err
+	}
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeClaimList(in LocalVolumeClaimList, out *LocalVolumeClaimList, c *conversion.Cloner) error {
+	if err := unversioned.DeepCopy_unversioned_TypeMeta(in.TypeMeta, &out.TypeMeta, c); err != nil {
+		return err
+	}
+	if err := unversioned.DeepCopy_unversioned_ListMeta(in.ListMeta, &out.ListMeta, c); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		in, out := in.Items, &out.Items
+		*out = make([]LocalVolumeClaim, len(in))
+		for i := range in {
+			if err := DeepCopy_v1beta1_LocalVolumeClaim(in[i], &(*out)[i], c); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeClaimSpec(in LocalVolumeClaimSpec, out *LocalVolumeClaimSpec, c *conversion.Cloner) error {
+	if in.AccessModes != nil {
+		in, out := in.AccessModes, &out.AccessModes
+		*out = make([]LocalVolumeAccessMode, len(in))
+		for i := range in {
+			(*out)[i] = in[i]
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	if in.Selector != nil {
+		in, out := in.Selector, &out.Selector
+		*out = new(unversioned.LabelSelector)
+		if err := unversioned.DeepCopy_unversioned_LabelSelector(*in, *out, c); err != nil {
+			return err
+		}
+	} else {
+		out.Selector = nil
+	}
+	if err := v1.DeepCopy_v1_ResourceRequirements(in.Resources, &out.Resources, c); err != nil {
+		return err
+	}
+	out.VolumeName = in.VolumeName
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeClaimStatus(in LocalVolumeClaimStatus, out *LocalVolumeClaimStatus, c *conversion.Cloner) error {
+	out.Phase = in.Phase
+	if in.AccessModes != nil {
+		in, out := in.AccessModes, &out.AccessModes
+		*out = make([]LocalVolumeAccessMode, len(in))
+		for i := range in {
+			(*out)[i] = in[i]
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	if in.Capacity != nil {
+		in, out := in.Capacity, &out.Capacity
+		*out = make(v1.ResourceList)
+		for key, val := range in {
+			newVal := new(resource.Quantity)
+			if err := resource.DeepCopy_resource_Quantity(val, newVal, c); err != nil {
+				return err
+			}
+			(*out)[key] = *newVal
+		}
+	} else {
+		out.Capacity = nil
+	}
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeList(in LocalVolumeList, out *LocalVolumeList, c *conversion.Cloner) error {
+	if err := unversioned.DeepCopy_unversioned_TypeMeta(in.TypeMeta, &out.TypeMeta, c); err != nil {
+		return err
+	}
+	if err := unversioned.DeepCopy_unversioned_ListMeta(in.ListMeta, &out.ListMeta, c); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		in, out := in.Items, &out.Items
+		*out = make([]LocalVolume, len(in))
+		for i := range in {
+			if err := DeepCopy_v1beta1_LocalVolume(in[i], &(*out)[i], c); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeSource(in LocalVolumeSource, out *LocalVolumeSource, c *conversion.Cloner) error {
+	out.Path = in.Path
+	out.VolumeSize = in.VolumeSize
+	out.Type = in.Type
+	out.FSType = in.FSType
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeSpec(in LocalVolumeSpec, out *LocalVolumeSpec, c *conversion.Cloner) error {
+	if err := DeepCopy_v1beta1_LocalVolumeSource(in.LocalVolumeSource, &out.LocalVolumeSource, c); err != nil {
+		return err
+	}
+	if in.ClaimRef != nil {
+		in, out := in.ClaimRef, &out.ClaimRef
+		*out = new(v1.ObjectReference)
+		if err := v1.DeepCopy_v1_ObjectReference(*in, *out, c); err != nil {
+			return err
+		}
+	} else {
+		out.ClaimRef = nil
+	}
+	if in.AccessModes != nil {
+		in, out := in.AccessModes, &out.AccessModes
+		*out = make([]LocalVolumeAccessMode, len(in))
+		for i := range in {
+			(*out)[i] = in[i]
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	out.NodeName = in.NodeName
+	return nil
+}
+
+func DeepCopy_v1beta1_LocalVolumeStatus(in LocalVolumeStatus, out *LocalVolumeStatus, c *conversion.Cloner) error {
+	out.AvailSize = in.AvailSize
 	return nil
 }
 

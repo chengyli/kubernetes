@@ -896,3 +896,98 @@ type NetworkPolicyList struct {
 
 	Items []NetworkPolicy `json:"items"`
 }
+
+type LocalVolumeAccessMode string
+
+// +genclient=true,nonNamespaced=true
+
+type LocalVolume struct {
+	unversioned.TypeMeta `json:",inline"`
+	api.ObjectMeta           `json:"metadata,omitempty"`
+
+	//Spec defines a local volume owned by the cluster
+	Spec LocalVolumeSpec `json:"spec,omitempty"`
+
+	// Status represents the current information about persistent volume.
+	Status LocalVolumeStatus `json:"status,omitempty"`
+}
+
+type LocalVolumeSpec struct {
+	// Resources represents the actual resources of the volume
+	//Capacity api.ResourceList `json:"capacity"`
+	// Source represents the location and type of a volume to mount.
+	LocalVolumeSource  `json:",inline"`
+	// Reference to LV claim
+	ClaimRef *api.ObjectReference `json:"claimRef,omitempty"`
+	// AccessModes contains all ways the volume can be mounted
+	AccessModes []LocalVolumeAccessMode `json:"accessModes,omitempty"`
+	// NodeName represent node where the LV is
+	NodeName string `json:"nodeName,omitempty"`
+}
+
+type LocalVolumeStatus struct {
+	AvailSize int64 `json:"availsize"`
+}
+
+type LocalDiskType string
+
+type LocalVolumeSource struct {
+	Path string `json:"path, omitempty"`
+	//The size of local disk, unit is MB
+	VolumeSize int64 `json:"volumeszie,omitempty"`
+	// The type of local disk, it could be "disk", "lvm" now.
+	Type LocalDiskType `json:"type"`
+	// The filesystem type of local disk, the default is ext4
+	FSType string `json:"fsType,omitempty"`
+}
+
+type LocalVolumeList struct {
+	unversioned.TypeMeta `json:",inline"`
+	// Standard list metadata.
+	// More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+	unversioned.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+
+	// Items is a list of schema objects.
+	Items []LocalVolume `json:"items" protobuf:"bytes,2,rep,name=items"`
+}
+
+// +genclient=true
+
+type LocalVolumeClaim struct {
+	unversioned.TypeMeta `json:",inline"`
+	api.ObjectMeta `json:"metadata,omitempty"`
+	// Spec defines the volume requested by a pod author
+	Spec LocalVolumeClaimSpec `json:"spec,omitempty"`
+	// Status represents the current information about a claim
+	Status LocalVolumeClaimStatus `json:"status,omitempty"`
+}
+
+type LocalVolumeClaimList struct {
+	unversioned.TypeMeta `json:",inline"`
+	unversioned.ListMeta `json:"metadata,omitempty"`
+	Items                []LocalVolumeClaim `json:"items"`
+}
+
+type LocalVolumeClaimSpec struct {
+	// Contains the types of access modes required
+	AccessModes []LocalVolumeAccessMode `json:"accessModes,omitempty"`
+	// A label query over volumes to consider for binding. This selector is
+	// ignored when VolumeName is set
+	Selector *unversioned.LabelSelector `json:"selector,omitempty"`
+	// Resources represents the minimum resources required
+	Resources api.ResourceRequirements `json:"resources,omitempty"`
+	// VolumeName is the binding reference to the PersistentVolume backing this
+	// claim. When set to non-empty value Selector is not evaluated
+	VolumeName string `json:"volumeName,omitempty"`
+}
+
+type LocalVolumeClaimStatus struct {
+	// Phase represents the current phase of PersistentVolumeClaim
+	Phase LocalVolumeClaimPhase `json:"phase,omitempty"`
+	// AccessModes contains all ways the volume backing the PVC can be mounted
+	AccessModes []LocalVolumeAccessMode `json:"accessModes,omitempty"`
+	// Represents the actual resources of the underlying volume
+	Capacity api.ResourceList `json:"capacity,omitempty"`
+}
+
+type LocalVolumeClaimPhase string

@@ -22,10 +22,12 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+//	"strconv"
 
 	"github.com/docker/docker/pkg/mount"
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
@@ -125,6 +127,11 @@ func (plugin *localDiskPlugin) initLocalDisk() {
 	}
 OUT:
 	for scanner.Scan() {
+		lv := extensions.LocalVolume{}
+		lv.Kind = "LocalVolume"
+		lv.APIVersion = "extensions/v1beta1"
+		lv.Spec.Type = "disk"
+		//lv.Spec.Capacity = make(api.ResourceList)
 		line := scanner.Text()
 		tokens := strings.Fields(line)
 		tklen := len(tokens)
@@ -133,6 +140,8 @@ OUT:
 			continue
 		}
 		path = tokens[0]
+		lv.Name = host.GetHostName()// + "-" + stringpath
+		glog.Info("check check check")
 		if tklen == 2 {
 			size = strings.ToUpper(tokens[1])
 			if !strings.HasSuffix(size, "M") {
@@ -183,6 +192,11 @@ OUT:
 					break
 				}
 			}
+		}
+		lv.Spec.VolumeSize = 1000
+		ret, err := host.GetKubeClient().Extensions().LocalVolumes().Create(&lv)
+		if err != nil {
+			glog.Warningf("update LV failed:\n%+v\n%+v", ret, err)
 		}
 		glog.Infof("Added loca disk: dev %s; mount point %s; size %s", path, mntPoint, size)
 		node.Status.LDCapacity[mntPoint] = resource.MustParse(size)

@@ -1065,6 +1065,15 @@ message LoadBalancerStatus {
 
 message LocalDiskVolumeSource {
   optional string path = 1;
+
+  // The size of local disk, unit is MB
+  optional int64 volumeszie = 2;
+
+  // The type of local disk, it could be "disk", "lvm" now.
+  optional string type = 3;
+
+  // The filesystem type of local disk, the default is ext4
+  optional string fsType = 4;
 }
 
 // LocalObjectReference contains enough information to let you locate the

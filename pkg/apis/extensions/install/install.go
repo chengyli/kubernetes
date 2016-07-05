@@ -93,6 +93,7 @@ func newRESTMapper(externalVersions []unversioned.GroupVersion) meta.RESTMapper 
 	rootScoped := sets.NewString(
 		"PodSecurityPolicy",
 		"ThirdPartyResource",
+		"LocalVolume",
 	)
 
 	ignoredKinds := sets.NewString()

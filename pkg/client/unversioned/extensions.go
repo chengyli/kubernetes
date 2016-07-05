@@ -34,6 +34,7 @@ type ExtensionsInterface interface {
 	JobsNamespacer
 	IngressNamespacer
 	NetworkPolicyNamespacer
+	LocalVolumeNamespacer
 	ThirdPartyResourceNamespacer
 	ReplicaSetsNamespacer
 	PodSecurityPoliciesInterface
@@ -72,6 +73,10 @@ func (c *ExtensionsClient) Ingress(namespace string) IngressInterface {
 
 func (c *ExtensionsClient) NetworkPolicies(namespace string) NetworkPolicyInterface {
 	return newNetworkPolicies(c, namespace)
+}
+
+func (c *ExtensionsClient) LocalVolumes() LocalVolumeInterface {
+	return newLocalVolumes(c)
 }
 
 func (c *ExtensionsClient) ThirdPartyResources() ThirdPartyResourceInterface {

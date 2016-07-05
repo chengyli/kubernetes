@@ -30,6 +30,8 @@ type ExtensionsInterface interface {
 	HorizontalPodAutoscalersGetter
 	IngressesGetter
 	JobsGetter
+	LocalVolumesGetter
+	LocalVolumeClaimsGetter
 	PodSecurityPoliciesGetter
 	ReplicaSetsGetter
 	ScalesGetter
@@ -59,6 +61,14 @@ func (c *ExtensionsClient) Ingresses(namespace string) IngressInterface {
 
 func (c *ExtensionsClient) Jobs(namespace string) JobInterface {
 	return newJobs(c, namespace)
+}
+
+func (c *ExtensionsClient) LocalVolumes() LocalVolumeInterface {
+	return newLocalVolumes(c)
+}
+
+func (c *ExtensionsClient) LocalVolumeClaims(namespace string) LocalVolumeClaimInterface {
+	return newLocalVolumeClaims(c, namespace)
 }
 
 func (c *ExtensionsClient) PodSecurityPolicies() PodSecurityPolicyInterface {
