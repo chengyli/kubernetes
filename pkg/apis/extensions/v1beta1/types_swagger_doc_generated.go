@@ -456,6 +456,74 @@ func (ListOptions) SwaggerDoc() map[string]string {
 	return map_ListOptions
 }
 
+var map_LocalVolume = map[string]string{
+	"spec":   "Spec defines a local volume owned by the cluster",
+	"status": "Status represents the current information about persistent volume.",
+}
+
+func (LocalVolume) SwaggerDoc() map[string]string {
+	return map_LocalVolume
+}
+
+var map_LocalVolumeClaim = map[string]string{
+	"spec":   "Spec defines the volume requested by a pod author",
+	"status": "Status represents the current information about a claim",
+}
+
+func (LocalVolumeClaim) SwaggerDoc() map[string]string {
+	return map_LocalVolumeClaim
+}
+
+var map_LocalVolumeClaimSpec = map[string]string{
+	"accessModes": "Contains the types of access modes required",
+	"selector":    "A label query over volumes to consider for binding. This selector is ignored when VolumeName is set",
+	"resources":   "Resources represents the minimum resources required",
+	"volumeName":  "VolumeName is the binding reference to the PersistentVolume backing this claim. When set to non-empty value Selector is not evaluated",
+}
+
+func (LocalVolumeClaimSpec) SwaggerDoc() map[string]string {
+	return map_LocalVolumeClaimSpec
+}
+
+var map_LocalVolumeClaimStatus = map[string]string{
+	"phase":       "Phase represents the current phase of PersistentVolumeClaim",
+	"accessModes": "AccessModes contains all ways the volume backing the PVC can be mounted",
+	"capacity":    "Represents the actual resources of the underlying volume",
+}
+
+func (LocalVolumeClaimStatus) SwaggerDoc() map[string]string {
+	return map_LocalVolumeClaimStatus
+}
+
+var map_LocalVolumeList = map[string]string{
+	"metadata": "Standard list metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata",
+	"items":    "Items is a list of schema objects.",
+}
+
+func (LocalVolumeList) SwaggerDoc() map[string]string {
+	return map_LocalVolumeList
+}
+
+var map_LocalVolumeSource = map[string]string{
+	"volumeszie": "The size of local disk, unit is MB",
+	"type":       "The type of local disk, it could be \"disk\", \"lvm\" now.",
+	"fsType":     "The filesystem type of local disk, the default is ext4",
+}
+
+func (LocalVolumeSource) SwaggerDoc() map[string]string {
+	return map_LocalVolumeSource
+}
+
+var map_LocalVolumeSpec = map[string]string{
+	"claimRef":    "Reference to LV claim",
+	"accessModes": "AccessModes contains all ways the volume can be mounted",
+	"nodeName":    "NodeName represent node where the LV is",
+}
+
+func (LocalVolumeSpec) SwaggerDoc() map[string]string {
+	return map_LocalVolumeSpec
+}
+
 var map_NetworkPolicy = map[string]string{
 	"metadata": "Standard object's metadata. More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata",
 	"spec":     "Specification of the desired behavior for this NetworkPolicy.",

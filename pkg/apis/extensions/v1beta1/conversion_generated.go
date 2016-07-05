@@ -22,6 +22,7 @@ package v1beta1
 
 import (
 	api "k8s.io/kubernetes/pkg/api"
+	resource "k8s.io/kubernetes/pkg/api/resource"
 	unversioned "k8s.io/kubernetes/pkg/api/unversioned"
 	v1 "k8s.io/kubernetes/pkg/api/v1"
 	autoscaling "k8s.io/kubernetes/pkg/apis/autoscaling"
@@ -110,6 +111,24 @@ func init() {
 		Convert_unversioned_LabelSelector_To_v1beta1_LabelSelector,
 		Convert_v1beta1_LabelSelectorRequirement_To_unversioned_LabelSelectorRequirement,
 		Convert_unversioned_LabelSelectorRequirement_To_v1beta1_LabelSelectorRequirement,
+		Convert_v1beta1_LocalVolume_To_extensions_LocalVolume,
+		Convert_extensions_LocalVolume_To_v1beta1_LocalVolume,
+		Convert_v1beta1_LocalVolumeClaim_To_extensions_LocalVolumeClaim,
+		Convert_extensions_LocalVolumeClaim_To_v1beta1_LocalVolumeClaim,
+		Convert_v1beta1_LocalVolumeClaimList_To_extensions_LocalVolumeClaimList,
+		Convert_extensions_LocalVolumeClaimList_To_v1beta1_LocalVolumeClaimList,
+		Convert_v1beta1_LocalVolumeClaimSpec_To_extensions_LocalVolumeClaimSpec,
+		Convert_extensions_LocalVolumeClaimSpec_To_v1beta1_LocalVolumeClaimSpec,
+		Convert_v1beta1_LocalVolumeClaimStatus_To_extensions_LocalVolumeClaimStatus,
+		Convert_extensions_LocalVolumeClaimStatus_To_v1beta1_LocalVolumeClaimStatus,
+		Convert_v1beta1_LocalVolumeList_To_extensions_LocalVolumeList,
+		Convert_extensions_LocalVolumeList_To_v1beta1_LocalVolumeList,
+		Convert_v1beta1_LocalVolumeSource_To_extensions_LocalVolumeSource,
+		Convert_extensions_LocalVolumeSource_To_v1beta1_LocalVolumeSource,
+		Convert_v1beta1_LocalVolumeSpec_To_extensions_LocalVolumeSpec,
+		Convert_extensions_LocalVolumeSpec_To_v1beta1_LocalVolumeSpec,
+		Convert_v1beta1_LocalVolumeStatus_To_extensions_LocalVolumeStatus,
+		Convert_extensions_LocalVolumeStatus_To_v1beta1_LocalVolumeStatus,
 		Convert_v1beta1_NetworkPolicy_To_extensions_NetworkPolicy,
 		Convert_extensions_NetworkPolicy_To_v1beta1_NetworkPolicy,
 		Convert_v1beta1_NetworkPolicyIngressRule_To_extensions_NetworkPolicyIngressRule,
@@ -1438,6 +1457,392 @@ func autoConvert_unversioned_LabelSelectorRequirement_To_v1beta1_LabelSelectorRe
 
 func Convert_unversioned_LabelSelectorRequirement_To_v1beta1_LabelSelectorRequirement(in *unversioned.LabelSelectorRequirement, out *LabelSelectorRequirement, s conversion.Scope) error {
 	return autoConvert_unversioned_LabelSelectorRequirement_To_v1beta1_LabelSelectorRequirement(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolume_To_extensions_LocalVolume(in *LocalVolume, out *extensions.LocalVolume, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	// TODO: Inefficient conversion - can we improve it?
+	if err := s.Convert(&in.ObjectMeta, &out.ObjectMeta, 0); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalVolumeSpec_To_extensions_LocalVolumeSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalVolumeStatus_To_extensions_LocalVolumeStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Convert_v1beta1_LocalVolume_To_extensions_LocalVolume(in *LocalVolume, out *extensions.LocalVolume, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolume_To_extensions_LocalVolume(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolume_To_v1beta1_LocalVolume(in *extensions.LocalVolume, out *LocalVolume, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	// TODO: Inefficient conversion - can we improve it?
+	if err := s.Convert(&in.ObjectMeta, &out.ObjectMeta, 0); err != nil {
+		return err
+	}
+	if err := Convert_extensions_LocalVolumeSpec_To_v1beta1_LocalVolumeSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_extensions_LocalVolumeStatus_To_v1beta1_LocalVolumeStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Convert_extensions_LocalVolume_To_v1beta1_LocalVolume(in *extensions.LocalVolume, out *LocalVolume, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolume_To_v1beta1_LocalVolume(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeClaim_To_extensions_LocalVolumeClaim(in *LocalVolumeClaim, out *extensions.LocalVolumeClaim, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	// TODO: Inefficient conversion - can we improve it?
+	if err := s.Convert(&in.ObjectMeta, &out.ObjectMeta, 0); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalVolumeClaimSpec_To_extensions_LocalVolumeClaimSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1beta1_LocalVolumeClaimStatus_To_extensions_LocalVolumeClaimStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeClaim_To_extensions_LocalVolumeClaim(in *LocalVolumeClaim, out *extensions.LocalVolumeClaim, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeClaim_To_extensions_LocalVolumeClaim(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeClaim_To_v1beta1_LocalVolumeClaim(in *extensions.LocalVolumeClaim, out *LocalVolumeClaim, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	// TODO: Inefficient conversion - can we improve it?
+	if err := s.Convert(&in.ObjectMeta, &out.ObjectMeta, 0); err != nil {
+		return err
+	}
+	if err := Convert_extensions_LocalVolumeClaimSpec_To_v1beta1_LocalVolumeClaimSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_extensions_LocalVolumeClaimStatus_To_v1beta1_LocalVolumeClaimStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Convert_extensions_LocalVolumeClaim_To_v1beta1_LocalVolumeClaim(in *extensions.LocalVolumeClaim, out *LocalVolumeClaim, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeClaim_To_v1beta1_LocalVolumeClaim(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeClaimList_To_extensions_LocalVolumeClaimList(in *LocalVolumeClaimList, out *extensions.LocalVolumeClaimList, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	if err := api.Convert_unversioned_ListMeta_To_unversioned_ListMeta(&in.ListMeta, &out.ListMeta, s); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]extensions.LocalVolumeClaim, len(*in))
+		for i := range *in {
+			if err := Convert_v1beta1_LocalVolumeClaim_To_extensions_LocalVolumeClaim(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeClaimList_To_extensions_LocalVolumeClaimList(in *LocalVolumeClaimList, out *extensions.LocalVolumeClaimList, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeClaimList_To_extensions_LocalVolumeClaimList(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeClaimList_To_v1beta1_LocalVolumeClaimList(in *extensions.LocalVolumeClaimList, out *LocalVolumeClaimList, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	if err := api.Convert_unversioned_ListMeta_To_unversioned_ListMeta(&in.ListMeta, &out.ListMeta, s); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]LocalVolumeClaim, len(*in))
+		for i := range *in {
+			if err := Convert_extensions_LocalVolumeClaim_To_v1beta1_LocalVolumeClaim(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func Convert_extensions_LocalVolumeClaimList_To_v1beta1_LocalVolumeClaimList(in *extensions.LocalVolumeClaimList, out *LocalVolumeClaimList, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeClaimList_To_v1beta1_LocalVolumeClaimList(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeClaimSpec_To_extensions_LocalVolumeClaimSpec(in *LocalVolumeClaimSpec, out *extensions.LocalVolumeClaimSpec, s conversion.Scope) error {
+	if in.AccessModes != nil {
+		in, out := &in.AccessModes, &out.AccessModes
+		*out = make([]extensions.LocalVolumeAccessMode, len(*in))
+		for i := range *in {
+			(*out)[i] = extensions.LocalVolumeAccessMode((*in)[i])
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	out.Selector = in.Selector
+	// TODO: Inefficient conversion - can we improve it?
+	if err := s.Convert(&in.Resources, &out.Resources, 0); err != nil {
+		return err
+	}
+	out.VolumeName = in.VolumeName
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeClaimSpec_To_extensions_LocalVolumeClaimSpec(in *LocalVolumeClaimSpec, out *extensions.LocalVolumeClaimSpec, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeClaimSpec_To_extensions_LocalVolumeClaimSpec(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeClaimSpec_To_v1beta1_LocalVolumeClaimSpec(in *extensions.LocalVolumeClaimSpec, out *LocalVolumeClaimSpec, s conversion.Scope) error {
+	if in.AccessModes != nil {
+		in, out := &in.AccessModes, &out.AccessModes
+		*out = make([]LocalVolumeAccessMode, len(*in))
+		for i := range *in {
+			(*out)[i] = LocalVolumeAccessMode((*in)[i])
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	out.Selector = in.Selector
+	// TODO: Inefficient conversion - can we improve it?
+	if err := s.Convert(&in.Resources, &out.Resources, 0); err != nil {
+		return err
+	}
+	out.VolumeName = in.VolumeName
+	return nil
+}
+
+func Convert_extensions_LocalVolumeClaimSpec_To_v1beta1_LocalVolumeClaimSpec(in *extensions.LocalVolumeClaimSpec, out *LocalVolumeClaimSpec, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeClaimSpec_To_v1beta1_LocalVolumeClaimSpec(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeClaimStatus_To_extensions_LocalVolumeClaimStatus(in *LocalVolumeClaimStatus, out *extensions.LocalVolumeClaimStatus, s conversion.Scope) error {
+	out.Phase = extensions.LocalVolumeClaimPhase(in.Phase)
+	if in.AccessModes != nil {
+		in, out := &in.AccessModes, &out.AccessModes
+		*out = make([]extensions.LocalVolumeAccessMode, len(*in))
+		for i := range *in {
+			(*out)[i] = extensions.LocalVolumeAccessMode((*in)[i])
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	if err := v1.Convert_v1_ResourceList_To_api_ResourceList(&in.Capacity, &out.Capacity, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeClaimStatus_To_extensions_LocalVolumeClaimStatus(in *LocalVolumeClaimStatus, out *extensions.LocalVolumeClaimStatus, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeClaimStatus_To_extensions_LocalVolumeClaimStatus(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeClaimStatus_To_v1beta1_LocalVolumeClaimStatus(in *extensions.LocalVolumeClaimStatus, out *LocalVolumeClaimStatus, s conversion.Scope) error {
+	out.Phase = LocalVolumeClaimPhase(in.Phase)
+	if in.AccessModes != nil {
+		in, out := &in.AccessModes, &out.AccessModes
+		*out = make([]LocalVolumeAccessMode, len(*in))
+		for i := range *in {
+			(*out)[i] = LocalVolumeAccessMode((*in)[i])
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	if in.Capacity != nil {
+		in, out := &in.Capacity, &out.Capacity
+		*out = make(v1.ResourceList, len(*in))
+		for key, val := range *in {
+			newVal := new(resource.Quantity)
+			if err := api.Convert_resource_Quantity_To_resource_Quantity(&val, newVal, s); err != nil {
+				return err
+			}
+			(*out)[v1.ResourceName(key)] = *newVal
+		}
+	} else {
+		out.Capacity = nil
+	}
+	return nil
+}
+
+func Convert_extensions_LocalVolumeClaimStatus_To_v1beta1_LocalVolumeClaimStatus(in *extensions.LocalVolumeClaimStatus, out *LocalVolumeClaimStatus, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeClaimStatus_To_v1beta1_LocalVolumeClaimStatus(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeList_To_extensions_LocalVolumeList(in *LocalVolumeList, out *extensions.LocalVolumeList, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	if err := api.Convert_unversioned_ListMeta_To_unversioned_ListMeta(&in.ListMeta, &out.ListMeta, s); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]extensions.LocalVolume, len(*in))
+		for i := range *in {
+			if err := Convert_v1beta1_LocalVolume_To_extensions_LocalVolume(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeList_To_extensions_LocalVolumeList(in *LocalVolumeList, out *extensions.LocalVolumeList, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeList_To_extensions_LocalVolumeList(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeList_To_v1beta1_LocalVolumeList(in *extensions.LocalVolumeList, out *LocalVolumeList, s conversion.Scope) error {
+	if err := api.Convert_unversioned_TypeMeta_To_unversioned_TypeMeta(&in.TypeMeta, &out.TypeMeta, s); err != nil {
+		return err
+	}
+	if err := api.Convert_unversioned_ListMeta_To_unversioned_ListMeta(&in.ListMeta, &out.ListMeta, s); err != nil {
+		return err
+	}
+	if in.Items != nil {
+		in, out := &in.Items, &out.Items
+		*out = make([]LocalVolume, len(*in))
+		for i := range *in {
+			if err := Convert_extensions_LocalVolume_To_v1beta1_LocalVolume(&(*in)[i], &(*out)[i], s); err != nil {
+				return err
+			}
+		}
+	} else {
+		out.Items = nil
+	}
+	return nil
+}
+
+func Convert_extensions_LocalVolumeList_To_v1beta1_LocalVolumeList(in *extensions.LocalVolumeList, out *LocalVolumeList, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeList_To_v1beta1_LocalVolumeList(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeSource_To_extensions_LocalVolumeSource(in *LocalVolumeSource, out *extensions.LocalVolumeSource, s conversion.Scope) error {
+	out.Path = in.Path
+	out.VolumeSize = in.VolumeSize
+	out.Type = extensions.LocalDiskType(in.Type)
+	out.FSType = in.FSType
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeSource_To_extensions_LocalVolumeSource(in *LocalVolumeSource, out *extensions.LocalVolumeSource, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeSource_To_extensions_LocalVolumeSource(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeSource_To_v1beta1_LocalVolumeSource(in *extensions.LocalVolumeSource, out *LocalVolumeSource, s conversion.Scope) error {
+	out.Path = in.Path
+	out.VolumeSize = in.VolumeSize
+	out.Type = LocalDiskType(in.Type)
+	out.FSType = in.FSType
+	return nil
+}
+
+func Convert_extensions_LocalVolumeSource_To_v1beta1_LocalVolumeSource(in *extensions.LocalVolumeSource, out *LocalVolumeSource, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeSource_To_v1beta1_LocalVolumeSource(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeSpec_To_extensions_LocalVolumeSpec(in *LocalVolumeSpec, out *extensions.LocalVolumeSpec, s conversion.Scope) error {
+	if err := Convert_v1beta1_LocalVolumeSource_To_extensions_LocalVolumeSource(&in.LocalVolumeSource, &out.LocalVolumeSource, s); err != nil {
+		return err
+	}
+	if in.ClaimRef != nil {
+		in, out := &in.ClaimRef, &out.ClaimRef
+		*out = new(api.ObjectReference)
+		// TODO: Inefficient conversion - can we improve it?
+		if err := s.Convert(*in, *out, 0); err != nil {
+			return err
+		}
+	} else {
+		out.ClaimRef = nil
+	}
+	if in.AccessModes != nil {
+		in, out := &in.AccessModes, &out.AccessModes
+		*out = make([]extensions.LocalVolumeAccessMode, len(*in))
+		for i := range *in {
+			(*out)[i] = extensions.LocalVolumeAccessMode((*in)[i])
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	out.NodeName = in.NodeName
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeSpec_To_extensions_LocalVolumeSpec(in *LocalVolumeSpec, out *extensions.LocalVolumeSpec, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeSpec_To_extensions_LocalVolumeSpec(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeSpec_To_v1beta1_LocalVolumeSpec(in *extensions.LocalVolumeSpec, out *LocalVolumeSpec, s conversion.Scope) error {
+	if err := Convert_extensions_LocalVolumeSource_To_v1beta1_LocalVolumeSource(&in.LocalVolumeSource, &out.LocalVolumeSource, s); err != nil {
+		return err
+	}
+	if in.ClaimRef != nil {
+		in, out := &in.ClaimRef, &out.ClaimRef
+		*out = new(v1.ObjectReference)
+		// TODO: Inefficient conversion - can we improve it?
+		if err := s.Convert(*in, *out, 0); err != nil {
+			return err
+		}
+	} else {
+		out.ClaimRef = nil
+	}
+	if in.AccessModes != nil {
+		in, out := &in.AccessModes, &out.AccessModes
+		*out = make([]LocalVolumeAccessMode, len(*in))
+		for i := range *in {
+			(*out)[i] = LocalVolumeAccessMode((*in)[i])
+		}
+	} else {
+		out.AccessModes = nil
+	}
+	out.NodeName = in.NodeName
+	return nil
+}
+
+func Convert_extensions_LocalVolumeSpec_To_v1beta1_LocalVolumeSpec(in *extensions.LocalVolumeSpec, out *LocalVolumeSpec, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeSpec_To_v1beta1_LocalVolumeSpec(in, out, s)
+}
+
+func autoConvert_v1beta1_LocalVolumeStatus_To_extensions_LocalVolumeStatus(in *LocalVolumeStatus, out *extensions.LocalVolumeStatus, s conversion.Scope) error {
+	out.AvailSize = in.AvailSize
+	return nil
+}
+
+func Convert_v1beta1_LocalVolumeStatus_To_extensions_LocalVolumeStatus(in *LocalVolumeStatus, out *extensions.LocalVolumeStatus, s conversion.Scope) error {
+	return autoConvert_v1beta1_LocalVolumeStatus_To_extensions_LocalVolumeStatus(in, out, s)
+}
+
+func autoConvert_extensions_LocalVolumeStatus_To_v1beta1_LocalVolumeStatus(in *extensions.LocalVolumeStatus, out *LocalVolumeStatus, s conversion.Scope) error {
+	out.AvailSize = in.AvailSize
+	return nil
+}
+
+func Convert_extensions_LocalVolumeStatus_To_v1beta1_LocalVolumeStatus(in *extensions.LocalVolumeStatus, out *LocalVolumeStatus, s conversion.Scope) error {
+	return autoConvert_extensions_LocalVolumeStatus_To_v1beta1_LocalVolumeStatus(in, out, s)
 }
 
 func autoConvert_v1beta1_NetworkPolicy_To_extensions_NetworkPolicy(in *NetworkPolicy, out *extensions.NetworkPolicy, s conversion.Scope) error {

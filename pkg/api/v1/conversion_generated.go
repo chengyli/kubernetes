@@ -2790,6 +2790,9 @@ func Convert_api_LoadBalancerStatus_To_v1_LoadBalancerStatus(in *api.LoadBalance
 
 func autoConvert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource(in *LocalDiskVolumeSource, out *api.LocalDiskVolumeSource, s conversion.Scope) error {
 	out.Path = in.Path
+	out.VolumeSize = in.VolumeSize
+	out.Type = api.LocalDiskType(in.Type)
+	out.FSType = in.FSType
 	return nil
 }
 
@@ -2799,6 +2802,9 @@ func Convert_v1_LocalDiskVolumeSource_To_api_LocalDiskVolumeSource(in *LocalDisk
 
 func autoConvert_api_LocalDiskVolumeSource_To_v1_LocalDiskVolumeSource(in *api.LocalDiskVolumeSource, out *LocalDiskVolumeSource, s conversion.Scope) error {
 	out.Path = in.Path
+	out.VolumeSize = in.VolumeSize
+	out.Type = LocalDiskType(in.Type)
+	out.FSType = in.FSType
 	return nil
 }
 

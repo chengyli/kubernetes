@@ -27,6 +27,8 @@ type ExtensionsInterface interface {
 	DaemonSetsGetter
 	DeploymentsGetter
 	IngressesGetter
+	LocalVolumesGetter
+	LocalVolumeClaimsGetter
 	PodSecurityPoliciesGetter
 	ReplicaSetsGetter
 	ScalesGetter
@@ -48,6 +50,14 @@ func (c *ExtensionsClient) Deployments(namespace string) DeploymentInterface {
 
 func (c *ExtensionsClient) Ingresses(namespace string) IngressInterface {
 	return newIngresses(c, namespace)
+}
+
+func (c *ExtensionsClient) LocalVolumes() LocalVolumeInterface {
+	return newLocalVolumes(c)
+}
+
+func (c *ExtensionsClient) LocalVolumeClaims(namespace string) LocalVolumeClaimInterface {
+	return newLocalVolumeClaims(c, namespace)
 }
 
 func (c *ExtensionsClient) PodSecurityPolicies() PodSecurityPolicyInterface {

@@ -46,6 +46,14 @@ func (c *FakeExtensions) Jobs(namespace string) v1beta1.JobInterface {
 	return &FakeJobs{c, namespace}
 }
 
+func (c *FakeExtensions) LocalVolumes() v1beta1.LocalVolumeInterface {
+	return &FakeLocalVolumes{c}
+}
+
+func (c *FakeExtensions) LocalVolumeClaims(namespace string) v1beta1.LocalVolumeClaimInterface {
+	return &FakeLocalVolumeClaims{c, namespace}
+}
+
 func (c *FakeExtensions) PodSecurityPolicies() v1beta1.PodSecurityPolicyInterface {
 	return &FakePodSecurityPolicies{c}
 }
