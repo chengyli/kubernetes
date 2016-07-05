@@ -440,8 +440,17 @@ type HostPathVolumeSource struct {
 }
 
 type LocalDiskVolumeSource struct {
-	Path string `json:"path"`
+	Path string `json:"path, omitempty"`
+	//The size of local disk, unit is MB
+	VolumeSize int64 `json:"volumeszie, omitempty"`
+	// The type of local disk, it could be "disk", "lvm" now.
+	Type LocalDiskType `json:"type"`
+	// The filesystem type of local disk, the default is ext4
+	FSType string `json:"fsType,omitempty"`
 }
+
+type LocalDiskType string
+
 // Represents an empty directory for a pod.
 // Empty directory volumes support ownership management and SELinux relabeling.
 type EmptyDirVolumeSource struct {

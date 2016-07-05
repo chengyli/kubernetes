@@ -534,8 +534,16 @@ type HostPathVolumeSource struct {
 }
 
 type LocalDiskVolumeSource struct {
-	Path string `json:"path" protobuf:"bytes,1,opt,name=path"`
+	Path string `json:"path, omitempty" protobuf:"bytes,1,opt,name=path"`
+	//The size of local disk, unit is MB
+	VolumeSize int64 `json:"volumeszie, omitempty" protobuf:"varint,2,opt,name=volumeszie"`
+	// The type of local disk, it could be "disk", "lvm" now.
+	Type LocalDiskType `json:"type" protobuf:"bytes,3,opt,name=type,casttype=LocalDiskType"`
+	// The filesystem type of local disk, the default is ext4
+	FSType string `json:"fsType,omitempty" protobuf:"bytes,4,opt,name=fsType"`
 }
+
+type LocalDiskType string
 
 // Represents an empty directory for a pod.
 // Empty directory volumes support ownership management and SELinux relabeling.

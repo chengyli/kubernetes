@@ -74,6 +74,8 @@ import (
 	"k8s.io/kubernetes/pkg/registry/namespace"
 	namespaceetcd "k8s.io/kubernetes/pkg/registry/namespace/etcd"
 	networkpolicyetcd "k8s.io/kubernetes/pkg/registry/networkpolicy/etcd"
+	localvolumeetcd "k8s.io/kubernetes/pkg/registry/localvolume/etcd"
+	lvcetcd "k8s.io/kubernetes/pkg/registry/localvolumeclaim/etcd"
 	"k8s.io/kubernetes/pkg/registry/node"
 	nodeetcd "k8s.io/kubernetes/pkg/registry/node/etcd"
 	pvetcd "k8s.io/kubernetes/pkg/registry/persistentvolume/etcd"
@@ -905,6 +907,14 @@ func (m *Master) getExtensionResources(c *Config) map[string]rest.Storage {
 	networkPolicyStorage := networkpolicyetcd.NewREST(restOptions("networkpolicies"))
 	if c.APIResourceConfigSource.ResourceEnabled(version.WithResource("networkpolicies")) {
 		storage["networkpolicies"] = networkPolicyStorage
+	}
+	localVolumeStorage := localvolumeetcd.NewREST(restOptions("localvolumes"))
+	if c.APIResourceConfigSource.ResourceEnabled(version.WithResource("localvolumes")) {
+		storage["localvolumes"] = localVolumeStorage
+	}
+	localVolumeClaimStorage, _ := lvcetcd.NewREST(restOptions("localvolumeclaims"))
+	if c.APIResourceConfigSource.ResourceEnabled(version.WithResource("localvolumeclaims")) {
+		storage["localvolumeclaims"] = localVolumeClaimStorage
 	}
 
 	return storage
