@@ -697,6 +697,16 @@ func (LoadBalancerStatus) SwaggerDoc() map[string]string {
 	return map_LoadBalancerStatus
 }
 
+var map_LocalDiskVolumeSource = map[string]string{
+	"volumeszie": "The size of local disk, unit is MB",
+	"type":       "The type of local disk, it could be \"disk\", \"lvm\" now.",
+	"fsType":     "The filesystem type of local disk, the default is ext4",
+}
+
+func (LocalDiskVolumeSource) SwaggerDoc() map[string]string {
+	return map_LocalDiskVolumeSource
+}
+
 var map_LocalObjectReference = map[string]string{
 	"":     "LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.",
 	"name": "Name of the referent. More info: http://releases.k8s.io/HEAD/docs/user-guide/identifiers.md#names",

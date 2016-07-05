@@ -29,3 +29,7 @@ type ThirdPartyResourceExpansion interface{}
 type ReplicaSetExpansion interface{}
 
 type PodSecurityPolicyExpansion interface{}
+
+type LocalVolumeExpansion interface{}
+
+type LocalVolumeClaimExpansion interface{}

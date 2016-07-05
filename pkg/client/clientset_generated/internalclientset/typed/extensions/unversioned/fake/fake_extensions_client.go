@@ -38,6 +38,14 @@ func (c *FakeExtensions) Ingresses(namespace string) unversioned.IngressInterfac
 	return &FakeIngresses{c, namespace}
 }
 
+func (c *FakeExtensions) LocalVolumes() unversioned.LocalVolumeInterface {
+	return &FakeLocalVolumes{c}
+}
+
+func (c *FakeExtensions) LocalVolumeClaims(namespace string) unversioned.LocalVolumeClaimInterface {
+	return &FakeLocalVolumeClaims{c, namespace}
+}
+
 func (c *FakeExtensions) PodSecurityPolicies() unversioned.PodSecurityPolicyInterface {
 	return &FakePodSecurityPolicies{c}
 }

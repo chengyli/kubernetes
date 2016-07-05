@@ -75,6 +75,10 @@ func addKnownTypes(scheme *runtime.Scheme) {
 		&PodSecurityPolicyList{},
 		&NetworkPolicy{},
 		&NetworkPolicyList{},
+		&LocalVolume{},
+		&LocalVolumeList{},
+		&LocalVolumeClaim{},
+		&LocalVolumeClaimList{},
 	)
 }
 
@@ -97,3 +101,7 @@ func (obj *PodSecurityPolicy) GetObjectKind() unversioned.ObjectKind          { 
 func (obj *PodSecurityPolicyList) GetObjectKind() unversioned.ObjectKind      { return &obj.TypeMeta }
 func (obj *NetworkPolicy) GetObjectKind() unversioned.ObjectKind              { return &obj.TypeMeta }
 func (obj *NetworkPolicyList) GetObjectKind() unversioned.ObjectKind          { return &obj.TypeMeta }
+func (obj *LocalVolume) GetObjectKind() unversioned.ObjectKind                { return &obj.TypeMeta }
+func (obj *LocalVolumeList) GetObjectKind() unversioned.ObjectKind            { return &obj.TypeMeta }
+func (obj *LocalVolumeClaim) GetObjectKind() unversioned.ObjectKind           { return &obj.TypeMeta }
+func (obj *LocalVolumeClaimList) GetObjectKind() unversioned.ObjectKind       { return &obj.TypeMeta }

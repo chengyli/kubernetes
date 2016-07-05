@@ -1306,6 +1306,9 @@ func DeepCopy_api_LoadBalancerStatus(in LoadBalancerStatus, out *LoadBalancerSta
 
 func DeepCopy_api_LocalDiskVolumeSource(in LocalDiskVolumeSource, out *LocalDiskVolumeSource, c *conversion.Cloner) error {
 	out.Path = in.Path
+	out.VolumeSize = in.VolumeSize
+	out.Type = in.Type
+	out.FSType = in.FSType
 	return nil
 }
 

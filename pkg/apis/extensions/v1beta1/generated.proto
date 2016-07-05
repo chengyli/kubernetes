@@ -625,6 +625,101 @@ message ListOptions {
   optional int64 timeoutSeconds = 5;
 }
 
+message LocalVolume {
+  optional k8s.io.kubernetes.pkg.api.v1.ObjectMeta metadata = 1;
+
+  // Spec defines a local volume owned by the cluster
+  optional LocalVolumeSpec spec = 2;
+
+  // Status represents the current information about persistent volume.
+  optional LocalVolumeStatus status = 3;
+}
+
+message LocalVolumeClaim {
+  optional k8s.io.kubernetes.pkg.api.v1.ObjectMeta metadata = 1;
+
+  // Spec defines the volume requested by a pod author
+  optional LocalVolumeClaimSpec spec = 2;
+
+  // Status represents the current information about a claim
+  optional LocalVolumeClaimStatus status = 3;
+}
+
+message LocalVolumeClaimList {
+  optional k8s.io.kubernetes.pkg.api.unversioned.ListMeta metadata = 1;
+
+  repeated LocalVolumeClaim items = 2;
+}
+
+message LocalVolumeClaimSpec {
+  // Contains the types of access modes required
+  repeated string accessModes = 1;
+
+  // A label query over volumes to consider for binding. This selector is
+  // ignored when VolumeName is set
+  optional k8s.io.kubernetes.pkg.api.unversioned.LabelSelector selector = 2;
+
+  // Resources represents the minimum resources required
+  optional k8s.io.kubernetes.pkg.api.v1.ResourceRequirements resources = 3;
+
+  // VolumeName is the binding reference to the PersistentVolume backing this
+  // claim. When set to non-empty value Selector is not evaluated
+  optional string volumeName = 4;
+}
+
+message LocalVolumeClaimStatus {
+  // Phase represents the current phase of PersistentVolumeClaim
+  optional string phase = 1;
+
+  // AccessModes contains all ways the volume backing the PVC can be mounted
+  repeated string accessModes = 2;
+
+  // Represents the actual resources of the underlying volume
+  map<string, k8s.io.kubernetes.pkg.api.resource.Quantity> capacity = 3;
+}
+
+message LocalVolumeList {
+  // Standard list metadata.
+  // More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata
+  optional k8s.io.kubernetes.pkg.api.unversioned.ListMeta metadata = 1;
+
+  // Items is a list of schema objects.
+  repeated LocalVolume items = 2;
+}
+
+message LocalVolumeSource {
+  optional string path = 1;
+
+  // The size of local disk, unit is MB
+  optional int64 volumeszie = 2;
+
+  // The type of local disk, it could be "disk", "lvm" now.
+  optional string type = 3;
+
+  // The filesystem type of local disk, the default is ext4
+  optional string fsType = 4;
+}
+
+message LocalVolumeSpec {
+  // Resources represents the actual resources of the volume
+  // Capacity api.ResourceList `json:"capacity"`
+  // Source represents the location and type of a volume to mount.
+  optional LocalVolumeSource localVolumeSource = 1;
+
+  // Reference to LV claim
+  optional k8s.io.kubernetes.pkg.api.v1.ObjectReference claimRef = 2;
+
+  // AccessModes contains all ways the volume can be mounted
+  repeated string accessModes = 3;
+
+  // NodeName represent node where the LV is
+  optional string nodeName = 4;
+}
+
+message LocalVolumeStatus {
+  optional int64 availsize = 1;
+}
+
 message NetworkPolicy {
   // Standard object's metadata.
   // More info: http://releases.k8s.io/HEAD/docs/devel/api-conventions.md#metadata

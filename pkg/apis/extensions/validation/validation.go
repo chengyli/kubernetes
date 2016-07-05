@@ -744,3 +744,13 @@ func ValidateNetworkPolicyUpdate(update, old *extensions.NetworkPolicy) field.Er
 	}
 	return allErrs
 }
+
+func ValidateLocalVolume(lv *extensions.LocalVolume) field.ErrorList {
+	allErrs := apivalidation.ValidateObjectMeta(&lv.ObjectMeta, false, apivalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
+	return allErrs
+}
+
+func ValidateLocalVolumeUpdate(update, old *extensions.LocalVolume) field.ErrorList {
+	allErrs := apivalidation.ValidateObjectMetaUpdate(&update.ObjectMeta, &old.ObjectMeta, field.NewPath("metadata"))
+	return allErrs
+}

@@ -41,6 +41,8 @@ const (
 	Jobs                     Resource = "jobs"
 	LimitRanges              Resource = "limitranges"
 	Namespaces               Resource = "namespaces"
+	LocalVolumes             Resource = "localvolumes"
+	LocalVolumeClaims        Resource = "localvolumeclaims"
 	NetworkPolicys           Resource = "networkpolicies"
 	Nodes                    Resource = "nodes"
 	PersistentVolumes        Resource = "persistentvolumes"
@@ -74,6 +76,8 @@ func init() {
 	watchCacheSizes[Jobs] = 100
 	watchCacheSizes[LimitRanges] = 100
 	watchCacheSizes[Namespaces] = 100
+	watchCacheSizes[LocalVolumes] = 100
+	watchCacheSizes[LocalVolumeClaims] = 100
 	watchCacheSizes[NetworkPolicys] = 100
 	watchCacheSizes[Nodes] = 1000
 	watchCacheSizes[PersistentVolumes] = 100
