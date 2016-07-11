@@ -28,16 +28,17 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/api"
 	"k8s.io/kubernetes/pkg/apis/extensions"
-	"k8s.io/kubernetes/pkg/api/resource"
+//	"k8s.io/kubernetes/pkg/api/resource"
 	"k8s.io/kubernetes/pkg/types"
 	"k8s.io/kubernetes/pkg/util"
 	"k8s.io/kubernetes/pkg/volume"
 	"strings"
+	"strconv"
 )
 
 const LocalDiskConfig = "/etc/sysconfig/localdisk"
 
-var MountPoint string = "/var/vol-pool/localdisk%d"
+const MountPoint = "/var/vol-pool/disks/%s"
 
 // This is the primary entrypoint for volume plugins.
 // The volumeConfig arg provides the ability to configure volume behavior.  It is implemented as a pointer to allow nils.
@@ -83,7 +84,134 @@ var _ volume.ProvisionableVolumePlugin = &localDiskPlugin{}
 
 const (
 	localDiskPluginName = "kubernetes.io/local-disk"
+	DiskVolume = "disks"
+	LvmVolume = "lvm"
+	ApiVersion = "extensions/v1beta1"
 )
+
+func parseConfigFile() map[string][]string {
+	disks := map[string][]string{}
+	file, err := os.Open(LocalDiskConfig)
+	if err != nil {
+		if os.IsNotExist(err) {
+			glog.Errorf("Local disk config file does not exist: %s", LocalDiskConfig)
+			return disks
+		}
+		glog.Errorf("Open file error: %v", err)
+		return disks
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	voltype := ""
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			voltype = strings.Trim(line, "[] ")
+			if voltype != DiskVolume && voltype != LvmVolume {
+				glog.Warningf("Invalid disk type: %s, can only be [disks] or [lvm]")
+				voltype = ""
+			}
+			continue
+		}
+		if voltype == "" {
+			continue
+		}
+		disks[voltype] = append(disks[voltype], line)
+	}
+	return disks
+}
+
+func registerBlockDisk(blk string, lv *extensions.LocalVolume) {
+	blk = strings.TrimRight(blk, "/")
+	mounts, _ := mount.GetMounts()
+	for _, mnt := range mounts {
+		if mnt.Source == blk {
+			glog.Warningf("The device has been mounted: %s. Skip it!", blk)
+			return
+		}
+	}
+
+	cmd := exec.Command("/sbin/mkfs.ext4", blk)
+	glog.Infof("Start to format %s", blk)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		glog.Warningf("Cannot format %s with error %v; output: %q", blk, err, string(output))
+		return
+	}
+
+	cmd = exec.Command("blkid", blk)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		glog.Warningf("Cannot get block device uuid: %s, error: %v; output: %q", blk, err, string(output))
+		return
+	}
+	uuid := string(output)
+	pos := strings.Index(uuid, "UUID=")
+	if pos == -1 {
+		glog.Warningf("The block device has not UUID found: %s", blk)
+		return
+	}
+	uuid = uuid[pos+len("UUID=\""):len(uuid)-1]
+	pos = strings.Index(uuid, "\"")
+	uuid = uuid[0:pos]
+
+	mntPoint := fmt.Sprintf(MountPoint, uuid)
+
+	os.MkdirAll(mntPoint, 0755)
+
+	cmd = exec.Command("mount", blk, mntPoint)
+	glog.Infof("Mount %s to %s", blk, mntPoint)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		glog.Warningf("Cannot mount %s to %s with error %v; output: %q", blk, mntPoint, err, string(output))
+		return
+	}
+
+	size := ""
+	cmd = exec.Command("df", "-B", "MB")
+	output, _ = cmd.CombinedOutput()
+	for _, df := range strings.Split(string(output), "\n") {
+		words := strings.Fields(df)
+		if len(words) != 6 {
+			glog.Warningf("The output of df -H is invalid: %s", df)
+			continue
+		}
+		if words[5] == mntPoint {
+			size = words[1]
+			break
+		}
+	}
+	size = strings.TrimRight(size, "MB")
+	mb, _ := strconv.Atoi(size)
+
+	lv.Spec.Type = "disk"
+	lv.Spec.Path = mntPoint
+	lv.Spec.VolumeSize = int64(mb)
+	lv.Status.AvailSize = int64(mb)
+}
+
+func registerLvm(lvm string, lv *extensions.LocalVolume) {
+	lvm = strings.TrimRight(lvm, "/")
+	cmd := exec.Command("vgs --noheadings --nosuffix --units M -o vg_size", lvm)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		glog.Warningf("Cannot read vg %s size with error %v; output: %q", lvm, err, string(output))
+		return
+	}
+	size := strings.TrimSpace(output)
+	pos := strings.Index(size, ".")
+	if pos != -1 {
+		size = size[0:pos]
+	}
+	mb, _ := strconv.Atoi(size)
+
+	lv.Spec.Type = "lvm"
+	lv.Spec.Path = lvm
+	lv.Spec.VolumeSize = int64(mb)
+	lv.Status.AvailSize = int64(mb)
+}
 
 func (plugin *localDiskPlugin) initLocalDisk() {
 	if plugin.host == nil {
@@ -102,132 +230,21 @@ func (plugin *localDiskPlugin) initLocalDisk() {
 		return
 	}
 
-	file, err := os.Open(LocalDiskConfig)
-	if err != nil {
-		if os.IsNotExist(err) {
-			glog.Errorf("Local disk config file does not exist: %s", LocalDiskConfig)
-			return
-		}
-		glog.Errorf("Open file error: %v", err)
-		return
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var path, size string
-	var mntPoint string
-	mounts, _ := mount.GetMounts()
-	count := 1
-	update := false
-	if node.Status.LDCapacity == nil {
-		node.Status.LDCapacity = make(api.LocalDiskList)
-	}
-	if node.Status.LDAllocatable == nil {
-		node.Status.LDAllocatable = make(api.LocalDiskList)
-	}
-OUT:
-	for scanner.Scan() {
+	disks := parseConfigFile()
+	for disk_type, volume := range disks {
 		lv := extensions.LocalVolume{}
 		lv.Kind = "LocalVolume"
-		lv.APIVersion = "extensions/v1beta1"
-		lv.Spec.Type = "disk"
-		//lv.Spec.Capacity = make(api.ResourceList)
-		line := scanner.Text()
-		tokens := strings.Fields(line)
-		tklen := len(tokens)
-		if tklen > 2 || tklen < 1 {
-			glog.Warningf("Ignore nnvalid line in local disk file: [%s]", line)
-			continue
+		lv.APIVersion = ApiVersion
+		lv.Spec.NodeName = host.GetHostName()
+		switch disk_type {
+		case DiskVolume:
+			registerBlockDisk(volume, &lv)
+		case LvmVolume:
+			registerLvm(volume, &lv)
 		}
-		path = tokens[0]
-		lv.Name = host.GetHostName()// + "-" + stringpath
-		glog.Info("check check check")
-		if tklen == 2 {
-			size = strings.ToUpper(tokens[1])
-			if !strings.HasSuffix(size, "M") {
-				size += "M"
-			}
-		}
-		for _, mnt := range mounts {
-			if mnt.Source == path {
-				glog.Warningf("The device has been mounted: %s", path)
-				continue OUT
-			}
-		}
-		cmd := exec.Command("/sbin/mkfs.ext4", path)
-		glog.Infof("Start to format %s", path)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			glog.Warningf("Cannot format %s with error %v; output: %q", path, err, string(output))
-			continue
-		}
-		for {
-			mntPoint = fmt.Sprintf(MountPoint, count)
-			count += 1
-			if err = os.MkdirAll(mntPoint, 0755); err != nil {
-				glog.Warningf("Cannot create mount point: %s", mntPoint)
-				continue
-			}
-			break
-		}
-		cmd = exec.Command("mount", path, mntPoint)
-		glog.Infof("Mount %s to %s", path, mntPoint)
-		output, err = cmd.CombinedOutput()
-		if err != nil {
-			glog.Warningf("Cannot mount %s to %s with error %v; output: %q", path, mntPoint, err, string(output))
-			continue
-		}
-
-		if size == "" {
-			cmd = exec.Command("df", "-H")
-			output, _ = cmd.CombinedOutput()
-			for _, df := range strings.Split(string(output), "\n") {
-				words := strings.Fields(df)
-				if len(words) != 6 {
-					glog.Warningf("The output of df -H is invalid: %s", df)
-					continue
-				}
-				if words[5] == mntPoint {
-					size = words[1]
-					break
-				}
-			}
-		}
-		lv.Spec.VolumeSize = 1000
 		ret, err := host.GetKubeClient().Extensions().LocalVolumes().Create(&lv)
 		if err != nil {
 			glog.Warningf("update LV failed:\n%+v\n%+v", ret, err)
-		}
-		glog.Infof("Added loca disk: dev %s; mount point %s; size %s", path, mntPoint, size)
-		node.Status.LDCapacity[mntPoint] = resource.MustParse(size)
-		node.Status.LDAllocatable[mntPoint] = resource.MustParse(size)
-		update = true
-	}
-	if update == false {
-		glog.Infof("No more local disk detected")
-		return
-	}
-	glog.Infof("Node status: %+v", node.Status)
-	for count := 0; count < 10; count++ {
-		newNode, _ := host.GetKubeClient().Core().Nodes().Get(node.Name)
-		if newNode.Status.LDCapacity == nil {
-			newNode.Status.LDCapacity = make(api.LocalDiskList)
-		}
-		if newNode.Status.LDAllocatable == nil {
-			newNode.Status.LDAllocatable = make(api.LocalDiskList)
-		}
-		for k, v := range node.Status.LDCapacity {
-			newNode.Status.LDCapacity[k] = v
-		}
-		for k, v := range node.Status.LDAllocatable {
-			newNode.Status.LDAllocatable[k] = v
-		}
-		glog.Infof("###Updating Nnde status###: %+v", newNode.Status)
-		_, err = host.GetKubeClient().Core().Nodes().UpdateStatus(newNode)
-		if err != nil {
-			glog.Warningf("Update node status of local disk failed %d: %+v", count, err)
-		} else {
-			break
 		}
 	}
 }
