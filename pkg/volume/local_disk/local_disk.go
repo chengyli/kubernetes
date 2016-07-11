@@ -20,8 +20,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"io"
 	"os/exec"
 	"regexp"
+	"crypto/rand"
 //	"strconv"
 
 	"github.com/docker/docker/pkg/mount"
@@ -123,6 +125,20 @@ func parseConfigFile() map[string][]string {
 	return disks
 }
 
+// newUUID generates a random UUID according to RFC 4122
+func newUUID() (string, error) {
+	uuid := make([]byte, 16)
+	n, err := io.ReadFull(rand.Reader, uuid)
+	if n != len(uuid) || err != nil {
+		return "", err
+	}
+	// variant bits; see section 4.1.1
+	uuid[8] = uuid[8]&^0xc0 | 0x80
+	// version 4 (pseudo-random); see section 4.1.3
+	uuid[6] = uuid[6]&^0xf0 | 0x40
+	return fmt.Sprintf("%x-%x-%x-%x-%x", uuid[0:4], uuid[4:6], uuid[6:8], uuid[8:10], uuid[10:]), nil
+}
+
 func registerBlockDisk(blk string, lv *extensions.LocalVolume) {
 	blk = strings.TrimRight(blk, "/")
 	mounts, _ := mount.GetMounts()
@@ -186,6 +202,7 @@ func registerBlockDisk(blk string, lv *extensions.LocalVolume) {
 	size = strings.TrimRight(size, "MB")
 	mb, _ := strconv.Atoi(size)
 
+	lv.Name = "lv-" + uuid
 	lv.Spec.Type = "disk"
 	lv.Spec.Path = mntPoint
 	lv.Spec.VolumeSize = int64(mb)
@@ -194,19 +211,22 @@ func registerBlockDisk(blk string, lv *extensions.LocalVolume) {
 
 func registerLvm(lvm string, lv *extensions.LocalVolume) {
 	lvm = strings.TrimRight(lvm, "/")
-	cmd := exec.Command("vgs --noheadings --nosuffix --units M -o vg_size", lvm)
+	cmd := exec.Command("/usr/sbin/vgs", "--noheadings", "--nosuffix", "--units", "M", "-o", "vg_size", lvm)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		glog.Warningf("Cannot read vg %s size with error %v; output: %q", lvm, err, string(output))
 		return
 	}
-	size := strings.TrimSpace(output)
+	size := string(output)
+	size = strings.TrimSpace(size)
 	pos := strings.Index(size, ".")
 	if pos != -1 {
 		size = size[0:pos]
 	}
 	mb, _ := strconv.Atoi(size)
 
+	uuid, _ := newUUID()
+	lv.Name = "lv-" + uuid
 	lv.Spec.Type = "lvm"
 	lv.Spec.Path = lvm
 	lv.Spec.VolumeSize = int64(mb)
@@ -231,7 +251,8 @@ func (plugin *localDiskPlugin) initLocalDisk() {
 	}
 
 	disks := parseConfigFile()
-	for disk_type, volume := range disks {
+	for disk_type, volumes := range disks {
+	for _, volume := range volumes {
 		lv := extensions.LocalVolume{}
 		lv.Kind = "LocalVolume"
 		lv.APIVersion = ApiVersion
@@ -242,10 +263,15 @@ func (plugin *localDiskPlugin) initLocalDisk() {
 		case LvmVolume:
 			registerLvm(volume, &lv)
 		}
+		if lv.Name == "" {
+			glog.Warningf("Error found for type: %s; volume: %s", disk_type, volume)
+			continue
+		}
 		ret, err := host.GetKubeClient().Extensions().LocalVolumes().Create(&lv)
 		if err != nil {
 			glog.Warningf("update LV failed:\n%+v\n%+v", ret, err)
 		}
+	}
 	}
 }
 
